@@ -5,6 +5,12 @@
 //!   /upload/*    → upload foto trip (multipart)
 //!   /pkg/*       → aset statis (WASM/JS/CSS)
 
+// Tipe view Leptos (mis. BrowsePage) sangat dalam; build RELEASE bin ini
+// menghitung layout future-nya dan melewati batas bawaan (128) → "queries
+// overflow the depth limit". Build dev tak terkena, jadi baru ketahuan di
+// `cargo leptos build --release` / Docker. Samakan dengan lib.rs.
+#![recursion_limit = "512"]
+
 use std::sync::Arc;
 
 use anyhow::{Context, Result};

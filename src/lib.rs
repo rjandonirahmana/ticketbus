@@ -4,7 +4,7 @@
 //! Setiap modul backend (`config`, `middleware`, `repository`, `service`,
 //! `state`) hanya untuk native — lihat aturan cfg-gating di README/CLAUDE.md.
 
-#![recursion_limit = "256"]
+#![recursion_limit = "512"]
 
 #[cfg(any(feature = "ssr", feature = "hydrate"))]
 pub mod web;
