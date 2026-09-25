@@ -1,0 +1,19 @@
+pub mod armada;
+pub mod order;
+pub mod otp;
+pub mod phone_change;
+pub mod photo;
+pub mod rating;
+pub mod rental;
+pub mod schedule;
+pub mod user;
+
+pub use armada::ArmadaRepository;
+pub use order::OrderRepository;
+pub use otp::OtpRepository;
+pub use phone_change::PhoneChangeRepository;
+pub use photo::TripPhotoRepository;
+pub use rating::RatingRepository;
+pub use rental::RentalRepository;
+pub use schedule::ScheduleRepository;
+pub use user::UserRepository;

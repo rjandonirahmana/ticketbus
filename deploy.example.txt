@@ -1,0 +1,101 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONTOH isi /opt/bis/deploy.txt  —  JANGAN taruh berkas asli di repo ini.
+#
+# Berkas ASLI tinggal di server saja karena memuat seluruh kredensial produksi.
+# Workflow (.github/workflows/master.yml) menyalin berkas server lalu
+# menjalankan salinannya, dan hanya mengirim SATU hal: tag image yang barusan
+# dibangun (argumen $1 dan env BIS_IMAGE).
+#
+# Pasang sekali di server:
+#   sudo mkdir -p /opt/bis/riwayat
+#   sudo nano /opt/bis/deploy.txt          # salin isi di bawah, isi rahasianya
+#   sudo chmod 600 /opt/bis/deploy.txt
+#
+# Uji manual tanpa menunggu CI:
+#   sudo bash /opt/bis/deploy.txt <user-dockerhub>/bis:latest
+#   curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3400/healthz   # harus 200
+#
+# ── ATURAN: `docker run` HARUS diakhiri "$IMAGE" ─────────────────────────────
+# Jangan menulis nama image secara langsung. Begitu ditulis mati, tag dari CI
+# diabaikan tanpa suara: setiap deploy menjalankan ulang image LAMA, health
+# check tetap hijau, CI tetap sukses — dan fitur baru tak pernah sampai server.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+set -euo pipefail
+
+IMAGE="${1:-${BIS_IMAGE:?tag image tidak diberikan}}"
+NAMA=bis
+PORT_HOST=3400
+
+echo "→ Menarik $IMAGE"
+docker pull "$IMAGE"
+echo "→ Image id: $(docker image inspect --format '{{.Id}}' "$IMAGE")"
+
+# Hentikan yang lama SESUDAH image baru berhasil ditarik — kalau pull gagal,
+# situs lama tetap jalan.
+echo "→ Menghentikan container lama (bila ada)"
+docker rm -f "$NAMA" 2>/dev/null || true
+
+echo "→ Menjalankan $NAMA"
+docker run -d \
+  --name "$NAMA" \
+  --restart unless-stopped \
+  `# HOST 3400 - CONTAINER 3000. Angka kiri BUKAN pilihan bebas:` \
+  `# pingora-kinetic meneruskan lajubus.online ke 127.0.0.1:3400` \
+  `# (lajubus_addr di config.yaml-nya). Port lain di host sudah terpakai:` \
+  `# 3000 panel WA, 3100 e-ticketing, 3200-3202 ppm, 3300 Gitea.` \
+  `# Angka KANAN 3000 = SITE_ADDR yang dipatri di Dockerfile.` \
+  -p 127.0.0.1:${PORT_HOST}:3000 \
+  `# ── Wajib ──────────────────────────────────────────────────────────────` \
+  `# "127.0.0.1" di dalam container = container itu sendiri → pakai gateway` \
+  `# bridge 172.17.0.1 untuk Postgres/RustFS/WAHA yang jalan di host.` \
+  -e DATABASE_URL='postgres://USER:SANDI@172.17.0.1:5432/bis' \
+  -e SESSION_SECRET='ganti-dengan-string-acak-panjang-minimal-32-karakter' \
+  -e ADMIN_PHONE='62812XXXXXXXX' \
+  -e ADMIN_PASSWORD='ganti-sandi-admin-yang-kuat' \
+  -e ADMIN_NAME='Admin LajuBus' \
+  `# Migrasi otomatis saat start (dijaga pg_advisory_lock).` \
+  -e AUTO_MIGRATE=true \
+  `# ── WhatsApp (WAHA) — OTP daftar, reset password, notifikasi sewa ──────` \
+  -e WAHA_BASE_URL='http://172.17.0.1:PORT_WAHA' \
+  -e WAHA_SESSION='default' \
+  -e WAHA_API_KEY='...' \
+  `# ── RustFS (foto trip, paket wisata, bus sewa) ─────────────────────────` \
+  `# ENDPOINT = app→storage (server-ke-server). PUBLIC_URL = yang dilihat` \
+  `# browser. Bucket harus bisa dibaca publik agar foto tampil.` \
+  -e RUSTFS_ENDPOINT='http://172.17.0.1:9000' \
+  -e RUSTFS_BUCKET='lajubus' \
+  -e RUSTFS_ACCESS_KEY='...' \
+  -e RUSTFS_SECRET_KEY='...' \
+  -e RUSTFS_PUBLIC_URL='https://image.ulalaapi.store/lajubus' \
+  `# ── Batas memori (VPS kecil) ───────────────────────────────────────────` \
+  `# Tanpa batas, app yang membengkak menyeret seluruh mesin (insiden OOM` \
+  `# 24 Agu 2026 membunuh Postgres). memory-swap = memory: sengaja tanpa swap` \
+  `# supaya "mati cepat lalu restart", bukan "beku lama".` \
+  `# Titik awal — ukur: docker stats --no-stream bis, lalu beri ruang ~2x.` \
+  --memory=384m \
+  --memory-swap=384m \
+  -e RUST_LOG='bis=info,tower_http=warn' \
+  "$IMAGE"
+
+# Tunggu app benar-benar menjawab sebelum melaporkan sukses. Diuji dengan curl
+# dari HOST, bukan `docker inspect .State.Health`: di VPS ini runtime youki
+# gagal `docker exec`, jadi status health Docker selalu "unhealthy" walau app
+# sehat — menunggunya akan menggagalkan setiap deploy.
+echo "→ Menunggu http://127.0.0.1:${PORT_HOST}/healthz"
+for i in $(seq 1 30); do
+  if curl -fsS -o /dev/null "http://127.0.0.1:${PORT_HOST}/healthz"; then
+    echo "✓ $NAMA sehat ($IMAGE)"
+    break
+  fi
+  if [ "$(docker inspect -f '{{.State.Running}}' "$NAMA" 2>/dev/null)" != "true" ]; then
+    echo "✗ Container $NAMA berhenti. 50 baris log terakhir:"
+    docker logs --tail 50 "$NAMA" || true
+    exit 1
+  fi
+  [ "$i" = 30 ] && { echo "✗ Tak kunjung sehat dalam 150 dtk:"; docker logs --tail 50 "$NAMA" || true; exit 1; }
+  sleep 5
+done
+
+# Image lama yang tak dipakai container mana pun menumpuk dan menghabiskan disk.
+docker image prune -f >/dev/null 2>&1 || true

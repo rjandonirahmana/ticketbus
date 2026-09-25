@@ -1,0 +1,27 @@
+pub mod account;
+pub mod admin;
+pub mod browse;
+pub mod forgot_password;
+pub mod login;
+pub mod merchant;
+pub mod not_found;
+pub mod order_detail;
+pub mod orders;
+pub mod register;
+pub mod sewa;
+pub mod verify_otp;
+pub mod wisata;
+
+pub use account::AccountPage;
+pub use admin::AdminPage;
+pub use browse::BrowsePage;
+pub use forgot_password::ForgotPasswordPage;
+pub use login::LoginPage;
+pub use merchant::MerchantPage;
+pub use not_found::NotFoundPage;
+pub use order_detail::OrderDetailPage;
+pub use orders::OrdersPage;
+pub use register::RegisterPage;
+pub use sewa::SewaPage;
+pub use verify_otp::VerifyOtpPage;
+pub use wisata::WisataPage;

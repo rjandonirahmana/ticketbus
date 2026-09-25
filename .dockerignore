@@ -1,0 +1,29 @@
+# Build artifacts — puluhan GB, tak pernah dibutuhkan build context
+target/
+
+# Env lokal — jangan bake secret ke image
+.env
+.env.*
+*.env
+
+# Contoh deploy milik server, bukan isi image
+deploy.example.txt
+
+# Dev tooling
+.git/
+.github/
+.gitignore
+.vscode/
+.idea/
+
+# macOS clutter
+.DS_Store
+**/.DS_Store
+
+# Editor & temp
+*.swp
+*.swo
+*~
+rustc-ice-*.txt
+
+node_modules/

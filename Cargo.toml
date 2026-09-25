@@ -1,0 +1,158 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# bis — PO Nyentrix Trans fleet management. Satu crate: Backend API (Axum) +
+# Frontend SSR+hydration (Leptos). Struktur mengikuti pola e-ticketing, dipangkas
+# untuk scope proyek ini (lihat CLAUDE.md).
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[package]
+name = "bis"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "bis"
+path = "src/main.rs"
+
+[lib]
+name = "bis"
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[package.metadata.leptos]
+name = "bis"
+output-name = "bis"
+site-root = "target/site"
+site-pkg-dir = "pkg"
+tailwind-input-file = "style/tailwind.css"
+assets-dir = "public"
+site-addr = "0.0.0.0:3000"
+reload-port = 3101
+browserquery = "defaults"
+env = "DEV"
+bin-features = ["ssr"]
+lib-features = ["hydrate"]
+lib-profile-release = "wasm-release"
+
+# ── Features ───────────────────────────────────────────────────────────────────
+[features]
+default = ["ssr"]
+ssr = [
+    "leptos/ssr",
+    "leptos/nonce",
+    "leptos_meta/ssr",
+    "leptos_router/ssr",
+    "dep:leptos_axum",
+]
+hydrate = ["leptos/hydrate", "leptos/nonce"]
+
+# ── Shared deps (dikompilasi untuk SEMUA target: native SSR + WASM) ────────────
+# ATURAN: jangan taruh dep yang menarik tokio/mio/axum di sini — lihat
+# CLAUDE.md "cfg-gating rule".
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2.0.18"
+chrono = { version = "0.4", features = ["serde", "wasmbind"] }
+
+leptos = { version = "0.8", default-features = false }
+leptos_meta = { version = "0.8", default-features = false }
+leptos_router = { version = "0.8", default-features = false }
+leptos_axum = { version = "0.8", optional = true }
+
+# Dikunci PERSIS mengikuti `wasm-bindgen` CLI yang terpasang global (`wasm-bindgen --version`).
+# cargo-leptos memakai CLI itu untuk men-generate glue JS, dan skema bindgen-nya
+# harus sama persis dengan versi crate yang dipakai membangun .wasm — kalau tidak,
+# build gagal dengan "schema version" mismatch.
+wasm-bindgen = "=0.2.122"
+js-sys = "0.3"
+gloo-net = { version = "0.6", default-features = false, features = ["http"] }
+web-sys = { version = "0.3", features = [
+    "Window",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlInputElement",
+    "HtmlSelectElement",
+    "HtmlTextAreaElement",
+    "Node",
+    "Event",
+    "EventTarget",
+    "MouseEvent",
+    "FormData",
+    "File",
+    "FileList",
+    "Storage",
+] }
+
+# ── Server-only deps (TIDAK dikompilasi untuk wasm32) ─────────────────────────
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+anyhow = "1"
+tokio = { version = "1", features = ["full"] }
+
+axum = { version = "0.8.9", features = ["multipart", "macros"] }
+tower = "0.5.3"
+tower-http = { version = "0.7", features = [
+    "trace",
+    "fs",
+    "compression-gzip",
+    "compression-br",
+] }
+
+tokio-postgres = { version = "0.7", features = [
+    "with-uuid-1",
+    "with-chrono-0_4",
+] }
+postgres-types = { version = "0.2.13", features = ["derive"] }
+deadpool-postgres = "0.14.1"
+
+uuid = { version = "1", features = ["v4", "serde"] }
+hmac = "0.12"
+sha2 = "0.10"
+subtle = "2.6"
+base64 = "0.22"
+
+aws-sdk-s3 = "1.132.0"
+rustls = { version = "0.23", features = [
+    "aws_lc_rs",
+], default-features = false }
+
+dotenvy = "0.15"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Auth multi-peran: hash password, kirim OTP via WAHA, generate OTP/password acak.
+bcrypt = "0.19"
+reqwest = { version = "0.13", default-features = false, features = [
+    "json",
+    "rustls",
+] }
+rand = "0.9"
+
+# ── WASM-only deps ─────────────────────────────────────────────────────────────
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1"
+getrandom = { version = "0.4.3", features = ["wasm_js"] }
+getrandom_03 = { package = "getrandom", version = "0.3", features = [
+    "wasm_js",
+] }
+
+# ── Performance profiles ───────────────────────────────────────────────────────
+[profile.dev]
+opt-level = 1
+debug = 1
+incremental = true
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+lto = "fat"
+panic = "abort"
