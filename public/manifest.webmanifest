@@ -1,0 +1,14 @@
+{
+  "name": "LajuBus — Tiket & Jadwal Bis",
+  "short_name": "LajuBus",
+  "description": "Cari jadwal bis antarkota, pilih kursi, sewa bus rombongan & paket wisata.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf8ff",
+  "theme_color": "#0f4c81",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

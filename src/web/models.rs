@@ -38,6 +38,11 @@ pub struct Schedule {
     pub kursi_terjual: i32,
     pub driver_nama: String,
     pub driver_telp: String,
+    /// Tata letak kursi: `2-2` | `2-1` | `1-1` (lihat `web::seats`).
+    pub konfigurasi: String,
+    pub dua_dek: bool,
+    /// Kode kursi yang diprioritaskan untuk penumpang wanita.
+    pub kursi_wanita: Vec<String>,
 }
 
 impl Schedule {
@@ -69,6 +74,10 @@ pub struct NewSchedule {
     pub kapasitas: i32,
     pub driver_nama: String,
     pub driver_telp: String,
+    pub konfigurasi: String,
+    pub dua_dek: bool,
+    /// Kode kursi wanita dipisah koma (form-urlencoded server fn).
+    pub kursi_wanita: String,
 }
 
 // ── Akun & sesi ────────────────────────────────────────────────────────────
@@ -87,7 +96,10 @@ pub struct PublicUser {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct NewOrder {
     pub schedule_id: String,
+    /// Diabaikan server bila `kursi` diisi — jumlah = banyaknya kursi.
     pub jumlah_tiket: i32,
+    /// Kode kursi dipisah koma, mis. "03A,03B".
+    pub kursi: String,
     pub nama_pemesan: String,
     pub telp_pemesan: String,
 }
@@ -104,6 +116,8 @@ pub struct OrderSummary {
     pub status: String,
     pub created_at: String,
     pub sudah_dirating: bool,
+    /// Nomor kursi (kosong untuk order sebelum kursi bernomor ada).
+    pub kursi: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -126,6 +140,56 @@ pub struct OrderDetail {
     pub status: String,
     pub created_at: String,
     pub sudah_dirating: bool,
+    pub kursi: Vec<String>,
+}
+
+/// Denah untuk halaman Pilih Kursi: jadwal + kode kursi yang sudah terjual.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct SeatMap {
+    pub schedule: Schedule,
+    pub terisi: Vec<String>,
+}
+
+// ── Keamanan akun ────────────────────────────────────────────────────────────
+
+/// Satu sesi login (perangkat) milik pengguna.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct SessionInfo {
+    pub id: String,
+    pub perangkat: String,
+    pub mobile: bool,
+    pub ip: String,
+    pub created_at: String,
+    pub last_seen_at: String,
+    /// Sesi yang sedang dipakai membuka halaman ini.
+    pub saat_ini: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct SecurityEvent {
+    pub jenis: String,
+    pub perangkat: String,
+    pub ip: String,
+    pub created_at: String,
+}
+
+/// Faktor skor keamanan — dihitung dari data asli, bukan angka hiasan.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct SecurityFactor {
+    pub label: String,
+    pub poin: i32,
+    pub maks: i32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct SecurityOverview {
+    pub skor: i32,
+    pub faktor: Vec<SecurityFactor>,
+    pub phone: String,
+    pub password_changed_at: String,
+    pub login_gagal_30h: i64,
+    pub sesi: Vec<SessionInfo>,
+    pub riwayat: Vec<SecurityEvent>,
 }
 
 // ── Rating ───────────────────────────────────────────────────────────────────

@@ -19,10 +19,21 @@ impl OrderRepository {
     /// pastikan kapasitas masih cukup, baru insert order + tambah
     /// `kursi_terjual`. Mencegah dua pembeli oversell kursi yang sama saat
     /// checkout serentak.
+    ///
+    /// Kursi bernomor: tiap kode divalidasi terhadap denah jadwal
+    /// (`web::seats::layout`) lalu disimpan di `order_seats`, yang PRIMARY
+    /// KEY-nya (schedule_id, kode) menolak kursi yang sudah dimiliki order
+    /// lain — dua pembeli yang mengklik kursi yang sama bersamaan, hanya satu
+    /// yang lolos, dan transaksi yang kalah dibatalkan utuh.
     pub async fn create(&self, buyer_id: &str, input: &NewOrder) -> anyhow::Result<OrderDetail> {
-        if input.jumlah_tiket <= 0 {
-            anyhow::bail!("Jumlah tiket harus lebih dari 0");
+        let kursi = crate::web::seats::parse_kode_list(&input.kursi);
+        if kursi.is_empty() {
+            anyhow::bail!("Pilih minimal 1 kursi");
         }
+        if kursi.len() > 10 {
+            anyhow::bail!("Maksimal 10 kursi per pemesanan");
+        }
+        let jumlah = kursi.len() as i32;
         let buyer_uuid = Uuid::parse_str(buyer_id)?;
         let schedule_uuid = Uuid::parse_str(&input.schedule_id)?;
 
@@ -32,7 +43,8 @@ impl OrderRepository {
 
             let row = tx
                 .query_opt(
-                    "SELECT harga, kapasitas, kursi_terjual FROM schedules WHERE id = $1 FOR UPDATE",
+                    "SELECT harga, kapasitas, kursi_terjual, konfigurasi, dua_dek, tanggal
+                       FROM schedules WHERE id = $1 FOR UPDATE",
                     &[&schedule_uuid],
                 )
                 .await?;
@@ -42,18 +54,28 @@ impl OrderRepository {
             let harga: i64 = row.get("harga");
             let kapasitas: i32 = row.get("kapasitas");
             let kursi_terjual: i32 = row.get("kursi_terjual");
+            let konfigurasi: String = row.get("konfigurasi");
+            let dua_dek: bool = row.get("dua_dek");
+            let tanggal: NaiveDate = row.get("tanggal");
+            if tanggal < (Utc::now() + chrono::Duration::hours(7)).date_naive() {
+                anyhow::bail!("Jadwal ini sudah lewat");
+            }
+            let denah = crate::web::seats::layout(kapasitas, &konfigurasi, dua_dek);
+            if let Some(k) = kursi.iter().find(|k| !denah.iter().any(|d| &d.kode == *k)) {
+                anyhow::bail!("Kursi {k} tidak ada di denah bus ini");
+            }
             let sisa = kapasitas - kursi_terjual;
-            if sisa < input.jumlah_tiket {
+            if sisa < jumlah {
                 anyhow::bail!("Kursi tidak cukup, sisa {sisa}");
             }
 
             tx.execute(
                 "UPDATE schedules SET kursi_terjual = kursi_terjual + $1 WHERE id = $2",
-                &[&input.jumlah_tiket, &schedule_uuid],
+                &[&jumlah, &schedule_uuid],
             )
             .await?;
 
-            let total = harga * input.jumlah_tiket as i64;
+            let total = harga * jumlah as i64;
             let kode_order = generate_order_code();
 
             let order_row = tx
@@ -65,7 +87,7 @@ impl OrderRepository {
                         &kode_order,
                         &buyer_uuid,
                         &schedule_uuid,
-                        &input.jumlah_tiket,
+                        &jumlah,
                         &harga,
                         &total,
                         &input.nama_pemesan,
@@ -74,8 +96,25 @@ impl OrderRepository {
                 )
                 .await?;
 
+            let order_uuid: Uuid = order_row.get("id");
+
+            for k in &kursi {
+                tx.execute(
+                    "INSERT INTO order_seats (schedule_id, kode, order_id) VALUES ($1, $2, $3)",
+                    &[&schedule_uuid, k, &order_uuid],
+                )
+                .await
+                .map_err(|e| {
+                    if e.code() == Some(&tokio_postgres::error::SqlState::UNIQUE_VIOLATION) {
+                        anyhow::anyhow!("Kursi {k} baru saja dipesan orang lain — silakan pilih kursi lain")
+                    } else {
+                        anyhow::Error::from(e)
+                    }
+                })?;
+            }
+
             tx.commit().await?;
-            order_row.get::<_, Uuid>("id").to_string()
+            order_uuid.to_string()
         };
 
         self.get_detail(&order_id, buyer_id)
@@ -93,7 +132,8 @@ impl OrderRepository {
                         o.nama_pemesan, o.telp_pemesan, o.status, o.created_at,
                         s.tanggal, s.tujuan, s.lokasi_jemput, s.jam, s.driver_nama, s.driver_telp,
                         a.id AS armada_id, a.name AS armada_name,
-                        EXISTS(SELECT 1 FROM ratings r WHERE r.order_id = o.id) AS sudah_dirating
+                        EXISTS(SELECT 1 FROM ratings r WHERE r.order_id = o.id) AS sudah_dirating,
+                        ARRAY(SELECT kode FROM order_seats os WHERE os.order_id = o.id ORDER BY kode) AS kursi
                    FROM orders o
                    JOIN schedules s ON s.id = o.schedule_id
                    JOIN armadas a ON a.id = s.armada_id
@@ -111,7 +151,8 @@ impl OrderRepository {
             .query(
                 "SELECT o.id, o.kode_order, o.jumlah_tiket, o.total_harga, o.status, o.created_at,
                         s.tanggal, s.tujuan, a.name AS armada_name,
-                        EXISTS(SELECT 1 FROM ratings r WHERE r.order_id = o.id) AS sudah_dirating
+                        EXISTS(SELECT 1 FROM ratings r WHERE r.order_id = o.id) AS sudah_dirating,
+                        ARRAY(SELECT kode FROM order_seats os WHERE os.order_id = o.id ORDER BY kode) AS kursi
                    FROM orders o
                    JOIN schedules s ON s.id = o.schedule_id
                    JOIN armadas a ON a.id = s.armada_id
@@ -129,7 +170,7 @@ fn generate_order_code() -> String {
     let today = Utc::now().format("%Y%m%d");
     let mut rng = rand::rng();
     let suffix: String = (0..4).map(|_| CHARS[rng.random_range(0..CHARS.len())] as char).collect();
-    format!("BIS-{today}-{suffix}")
+    format!("LJB-{today}-{suffix}")
 }
 
 fn row_to_detail(row: &tokio_postgres::Row) -> OrderDetail {
@@ -154,6 +195,7 @@ fn row_to_detail(row: &tokio_postgres::Row) -> OrderDetail {
         status: row.get("status"),
         created_at: created_at.to_rfc3339(),
         sudah_dirating: row.get("sudah_dirating"),
+        kursi: row.get("kursi"),
     }
 }
 
@@ -171,5 +213,6 @@ fn row_to_summary(row: &tokio_postgres::Row) -> OrderSummary {
         status: row.get("status"),
         created_at: created_at.to_rfc3339(),
         sudah_dirating: row.get("sudah_dirating"),
+        kursi: row.get("kursi"),
     }
 }

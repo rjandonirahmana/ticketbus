@@ -59,9 +59,7 @@ fn nav_links(user: Option<PublicUser>, path: String, class: &'static str) -> imp
 pub fn BrandLogo(#[prop(optional)] large: bool) -> impl IntoView {
     view! {
         <span class=if large { "brand-logo-wrap large" } else { "brand-logo-wrap" }>
-            <span class="brand-logo">
-                <Icon name="directions_bus" filled=true />
-            </span>
+            <img class="brand-logo" src="/icon.svg" alt="" width="36" height="36" />
             <span class="brand-text">
                 <strong>
                     "Laju" <em>"Bus"</em>
@@ -152,5 +150,27 @@ pub fn PageHead(
             </div>
             {children.map(|c| c())}
         </div>
+    }
+}
+
+/// Tab area akun (Profil · Keamanan · Bantuan) — setara bar bawah khusus-akun
+/// di desain, tapi di dalam halaman supaya navigasi utama tetap konsisten.
+#[component]
+pub fn AccountTabs(active: &'static str) -> impl IntoView {
+    let tab = move |href: &'static str, key: &'static str, icon: &'static str, label: &'static str| {
+        let on = active == key;
+        view! {
+            <a href=href class=if on { "acct-tab active" } else { "acct-tab" }>
+                <Icon name=icon filled=on />
+                <span>{label}</span>
+            </a>
+        }
+    };
+    view! {
+        <nav class="acct-tabs">
+            {tab("/akun", "profil", "account_circle", "Profil")}
+            {tab("/akun/keamanan", "keamanan", "verified_user", "Keamanan")}
+            {tab("/bantuan", "bantuan", "support_agent", "Bantuan")}
+        </nav>
     }
 }

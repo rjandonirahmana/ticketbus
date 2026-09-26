@@ -97,12 +97,21 @@ async fn main() -> Result<()> {
             user_repo,
             OtpRepository::new(pool.clone()),
             PhoneChangeRepository::new(pool.clone()),
+            bis::repository::security::SecurityRepository::new(pool.clone()),
             waha,
             rate_limiter,
             cfg.session_secret.clone(),
         ),
         storage,
     });
+
+    // Sesudah migrasi 005: cookie sesi yang sudah dicabut pemiliknya
+    // ("keluarkan dari semua perangkat lain") harus ditolak sejak request pertama.
+    state
+        .auth_svc
+        .load_session_revocations()
+        .await
+        .context("gagal memuat pencabutan sesi")?;
 
     let leptos_conf = get_configuration(Some("Cargo.toml"))
         .map_err(|e| anyhow::anyhow!("gagal memuat konfigurasi leptos: {e}"))?;

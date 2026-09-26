@@ -109,8 +109,14 @@ pub fn OrderDetailPage() -> impl IntoView {
                                             <dd>{o.telp_pemesan.clone()}</dd>
                                         </div>
                                         <div>
-                                            <dt>"Jumlah Kursi"</dt>
-                                            <dd>{format!("{} kursi", o.jumlah_tiket)}</dd>
+                                            <dt>{if o.kursi.is_empty() { "Jumlah Kursi" } else { "Nomor Kursi" }}</dt>
+                                            <dd class=if o.kursi.is_empty() { "" } else { "seat-codes" }>
+                                                {if o.kursi.is_empty() {
+                                                    format!("{} kursi", o.jumlah_tiket)
+                                                } else {
+                                                    o.kursi.join(", ")
+                                                }}
+                                            </dd>
                                         </div>
                                         <div>
                                             <dt>"Driver"</dt>

@@ -10,6 +10,7 @@ use chrono::{Duration, Utc};
 use rand::Rng;
 use subtle::ConstantTimeEq;
 
+use crate::repository::security::SecurityRepository;
 use crate::repository::{OtpRepository, PhoneChangeRepository, UserRepository};
 use crate::service::rate_limit::RateLimiter;
 use crate::service::wa_message;
@@ -36,16 +37,41 @@ const PHONE_CHANGE_MAX_PER_HOUR: usize = 5;
 pub struct Claims {
     pub user_id: String,
     pub role: String,
+    /// Baris `user_sessions` milik cookie ini. `None` = cookie lama (sebelum
+    /// migrasi 006) yang belum punya sesi tercatat.
+    pub session_id: Option<String>,
 }
+
+/// Asal request — dicatat di sesi & riwayat keamanan.
+#[derive(Clone, Debug, Default)]
+pub struct SessionMeta {
+    pub user_agent: String,
+    pub ip: String,
+}
+
+/// Jarak minimum antar-pembaruan `last_seen_at` satu sesi.
+const TOUCH_EVERY_SECS: u64 = 300;
 
 #[derive(Clone)]
 pub struct AuthService {
     users: UserRepository,
     otp: OtpRepository,
     phone_change: PhoneChangeRepository,
+    security: SecurityRepository,
     waha: WahaClient,
     rate: Arc<RateLimiter>,
     secret: String,
+    /// Id sesi yang dicabut (per perangkat / keluar semua / bekukan). Dimuat
+    /// saat start dari `user_sessions.revoked_at`.
+    revoked_sids: Arc<std::sync::RwLock<std::collections::HashSet<String>>>,
+    /// Kapan `last_seen_at` tiap sesi terakhir ditulis — throttle DB.
+    touched: Arc<std::sync::Mutex<std::collections::HashMap<String, std::time::Instant>>>,
+    /// user_id → detik UNIX: sesi yang terbit SEBELUM ini ditolak ("keluarkan
+    /// dari semua perangkat lain"). Disalin dari `users.sessions_valid_after`
+    /// saat start (`load_session_revocations`) supaya `verify_session` tetap
+    /// sinkron & tanpa query DB per request. Aman karena app ini satu proses
+    /// (rate limiter pun sudah in-memory).
+    revoked: Arc<std::sync::RwLock<std::collections::HashMap<String, i64>>>,
 }
 
 impl AuthService {
@@ -53,21 +79,331 @@ impl AuthService {
         users: UserRepository,
         otp: OtpRepository,
         phone_change: PhoneChangeRepository,
+        security: SecurityRepository,
         waha: WahaClient,
         rate: Arc<RateLimiter>,
         secret: String,
     ) -> Self {
-        Self { users, otp, phone_change, waha, rate, secret }
+        Self {
+            users,
+            otp,
+            phone_change,
+            security,
+            waha,
+            rate,
+            secret,
+            revoked: Default::default(),
+            revoked_sids: Default::default(),
+            touched: Default::default(),
+        }
     }
 
-    pub fn issue_session(&self, user_id: &str, role: &str) -> String {
-        token::issue(&self.secret, &format!("{user_id}|{role}"), SESSION_TTL_DAYS)
+    /// Dipanggil sekali saat start (main.rs), sesudah migrasi.
+    pub async fn load_session_revocations(&self) -> anyhow::Result<()> {
+        let list = self.users.session_revocations().await?;
+        let n = list.len();
+        if let Ok(mut map) = self.revoked.write() {
+            map.extend(list);
+        }
+        let sids = self.security.revoked_recent().await?;
+        let m = sids.len();
+        if let Ok(mut set) = self.revoked_sids.write() {
+            set.extend(sids);
+        }
+        tracing::info!(pengguna = n, sesi = m, "pencabutan sesi dimuat");
+        Ok(())
+    }
+
+    /// Payload `user_id|role|iat|sid` — `iat` (detik UNIX) untuk pencabutan
+    /// massal, `sid` untuk pencabutan per perangkat.
+    fn token_for(&self, user_id: &str, role: &str, sid: &str) -> String {
+        let iat = Utc::now().timestamp();
+        token::issue(&self.secret, &format!("{user_id}|{role}|{iat}|{sid}"), SESSION_TTL_DAYS)
+    }
+
+    /// Login baru: catat sesi (perangkat) lalu terbitkan cookie-nya.
+    async fn start_session(&self, user_id: &str, role: &str, meta: &SessionMeta) -> anyhow::Result<String> {
+        let sid = self.security.create_session(user_id, &meta.user_agent, &meta.ip).await?;
+        Ok(self.token_for(user_id, role, &sid))
     }
 
     pub fn verify_session(&self, cookie_value: &str) -> Option<Claims> {
         let payload = token::verify(&self.secret, cookie_value)?;
-        let (id, role) = payload.split_once('|')?;
-        Some(Claims { user_id: id.to_string(), role: role.to_string() })
+        let mut parts = payload.splitn(4, '|');
+        let id = parts.next()?;
+        let role = parts.next()?;
+        // Token lama (sebelum 26 Sep 2026) tak punya iat → dianggap terbit di
+        // awal zaman: tetap sah, KECUALI pemiliknya mencabut semua sesinya.
+        let iat: i64 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+        let sid = parts.next().filter(|s| !s.is_empty()).map(str::to_string);
+        if let Ok(map) = self.revoked.read() {
+            if map.get(id).is_some_and(|after| iat < *after) {
+                return None;
+            }
+        }
+        if let Some(sid) = &sid {
+            if self.revoked_sids.read().is_ok_and(|set| set.contains(sid)) {
+                return None;
+            }
+        }
+        Some(Claims { user_id: id.to_string(), role: role.to_string(), session_id: sid })
+    }
+
+    fn mark_revoked(&self, sids: impl IntoIterator<Item = String>) {
+        if let Ok(mut set) = self.revoked_sids.write() {
+            set.extend(sids);
+        }
+    }
+
+    async fn event(&self, user_id: &str, jenis: &str, meta: &SessionMeta) {
+        if let Err(e) = self.security.record(user_id, jenis, &meta.user_agent, &meta.ip).await {
+            tracing::warn!(error = %e, jenis, "gagal mencatat riwayat keamanan");
+        }
+    }
+
+    /// Perbarui "terakhir aktif" sesi ini — paling sering tiap 5 menit.
+    pub fn touch(&self, claims: &Claims) {
+        let Some(sid) = claims.session_id.clone() else { return };
+        let now = std::time::Instant::now();
+        let due = match self.touched.lock() {
+            Ok(mut map) => {
+                let due = map.get(&sid).is_none_or(|t| now.duration_since(*t).as_secs() >= TOUCH_EVERY_SECS);
+                if due {
+                    map.insert(sid.clone(), now);
+                }
+                due
+            }
+            Err(_) => false,
+        };
+        if due {
+            let repo = self.security.clone();
+            tokio::spawn(async move {
+                let _ = repo.touch_session(&sid).await;
+            });
+        }
+    }
+
+    /// Cabut semua sesi LAIN (per sid + batas waktu untuk cookie lama tanpa
+    /// sid), lalu kembalikan cookie baru untuk perangkat ini.
+    async fn revoke_others_and_reissue(&self, claims: &Claims, meta: &SessionMeta) -> anyhow::Result<String> {
+        let now = Utc::now();
+        let dicabut = self.security.revoke_sessions(&claims.user_id, claims.session_id.as_deref()).await?;
+        self.mark_revoked(dicabut);
+        self.users.set_sessions_valid_after(&claims.user_id, now).await?;
+        if let Ok(mut map) = self.revoked.write() {
+            map.insert(claims.user_id.clone(), now.timestamp());
+        }
+        match &claims.session_id {
+            Some(sid) => Ok(self.token_for(&claims.user_id, &claims.role, sid)),
+            None => self.start_session(&claims.user_id, &claims.role, meta).await,
+        }
+    }
+
+    /// Tombol "Keluar dari Semua Perangkat Lain" di Pusat Keamanan.
+    pub async fn logout_other_devices(&self, claims: &Claims, meta: &SessionMeta) -> anyhow::Result<String> {
+        let token = self.revoke_others_and_reissue(claims, meta).await?;
+        self.event(&claims.user_id, "keluar_semua", meta).await;
+        Ok(token)
+    }
+
+    /// Keluarkan satu perangkat. Sesi yang sedang dipakai tak boleh dicabut
+    /// dari sini — untuk itu ada tombol Keluar biasa.
+    pub async fn revoke_device(&self, claims: &Claims, session_id: &str, meta: &SessionMeta) -> anyhow::Result<()> {
+        if claims.session_id.as_deref() == Some(session_id) {
+            anyhow::bail!("Ini perangkat yang sedang Anda pakai — gunakan tombol Keluar dari Akun");
+        }
+        if !self.security.revoke_session(&claims.user_id, session_id).await? {
+            anyhow::bail!("Sesi tidak ditemukan atau sudah berakhir");
+        }
+        self.mark_revoked([session_id.to_string()]);
+        self.event(&claims.user_id, "sesi_dicabut", meta).await;
+        Ok(())
+    }
+
+    /// Logout biasa: cabut sesi perangkat ini (cookie curian tak lagi berguna).
+    pub async fn logout(&self, claims: &Claims) {
+        if let Some(sid) = &claims.session_id {
+            if self.security.revoke_session(&claims.user_id, sid).await.unwrap_or(false) {
+                self.mark_revoked([sid.clone()]);
+            }
+        }
+    }
+
+    /// Bekukan akun: SEMUA sesi (termasuk perangkat ini) dicabut dan login
+    /// dengan password biasa ditolak sampai pemilik memakai Lupa Password.
+    pub async fn freeze_account(&self, claims: &Claims, meta: &SessionMeta) -> anyhow::Result<()> {
+        let now = Utc::now();
+        self.security.set_frozen(&claims.user_id, true).await?;
+        let dicabut = self.security.revoke_sessions(&claims.user_id, None).await?;
+        self.mark_revoked(dicabut);
+        self.users.set_sessions_valid_after(&claims.user_id, now).await?;
+        if let Ok(mut map) = self.revoked.write() {
+            map.insert(claims.user_id.clone(), now.timestamp() + 1);
+        }
+        self.event(&claims.user_id, "akun_dibekukan", meta).await;
+        if let Some(u) = self.users.find_by_id(&claims.user_id).await? {
+            let waha = self.waha.clone();
+            let text = wa_message::account_frozen(&u.name);
+            let chat = phone::to_waha_chat_id(&u.phone);
+            tokio::spawn(async move {
+                if let Err(e) = waha.send_text(&chat, &text).await {
+                    tracing::warn!(error = %e, "WA notifikasi bekukan akun gagal");
+                }
+            });
+        }
+        Ok(())
+    }
+
+    /// Data Pusat Keamanan: skor dari fakta asli + sesi + riwayat.
+    pub async fn security_overview(&self, claims: &Claims) -> anyhow::Result<crate::web::models::SecurityOverview> {
+        use crate::web::models::{SecurityEvent, SecurityFactor, SecurityOverview, SessionInfo};
+        use crate::web::seats::{is_mobile, nama_perangkat, samarkan_ip};
+
+        let user = self
+            .users
+            .find_by_id(&claims.user_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Akun tidak ditemukan"))?;
+        let (_, changed) = self
+            .users
+            .password_state(&claims.user_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Akun tidak ditemukan"))?;
+        let gagal = self.security.count_since(&claims.user_id, "login_gagal", 30).await?;
+        let sesi_rows = self.security.active_sessions(&claims.user_id).await?;
+        let events = self.security.recent_events(&claims.user_id, 8).await?;
+
+        let umur_sandi = (Utc::now() - changed).num_days();
+        let faktor = vec![
+            SecurityFactor { label: "Nomor WhatsApp terverifikasi".into(), poin: 30, maks: 30 },
+            SecurityFactor {
+                label: "Kata sandi diperbarui ≤ 90 hari".into(),
+                poin: match umur_sandi {
+                    ..=90 => 30,
+                    91..=180 => 15,
+                    _ => 0,
+                },
+                maks: 30,
+            },
+            SecurityFactor {
+                label: "Tanpa login gagal 30 hari terakhir".into(),
+                poin: match gagal {
+                    0 => 20,
+                    1..=3 => 10,
+                    _ => 0,
+                },
+                maks: 20,
+            },
+            SecurityFactor {
+                label: "Maksimal 3 perangkat aktif".into(),
+                poin: if sesi_rows.len() <= 3 { 20 } else { 5 },
+                maks: 20,
+            },
+        ];
+        let skor = faktor.iter().map(|f| f.poin).sum();
+
+        let sesi = sesi_rows
+            .into_iter()
+            .map(|r| SessionInfo {
+                saat_ini: claims.session_id.as_deref() == Some(r.id.as_str()),
+                perangkat: nama_perangkat(&r.user_agent),
+                mobile: is_mobile(&r.user_agent),
+                ip: samarkan_ip(&r.ip),
+                created_at: r.created_at.to_rfc3339(),
+                last_seen_at: r.last_seen_at.to_rfc3339(),
+                id: r.id,
+            })
+            .collect();
+        let riwayat = events
+            .into_iter()
+            .map(|e| SecurityEvent {
+                perangkat: nama_perangkat(&e.user_agent),
+                ip: samarkan_ip(&e.ip),
+                created_at: e.created_at.to_rfc3339(),
+                jenis: e.jenis,
+            })
+            .collect();
+
+        Ok(SecurityOverview {
+            skor,
+            faktor,
+            phone: user.phone,
+            password_changed_at: changed.to_rfc3339(),
+            login_gagal_30h: gagal,
+            sesi,
+            riwayat,
+        })
+    }
+
+    /// Kapan password terakhir diubah (RFC 3339) — untuk "Terakhir diubah".
+    pub async fn password_changed_at(&self, user_id: &str) -> anyhow::Result<String> {
+        let (_, changed) = self
+            .users
+            .password_state(user_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Akun tidak ditemukan"))?;
+        Ok(changed.to_rfc3339())
+    }
+
+    /// Ganti password dari halaman Akun. Mengembalikan cookie sesi BARU —
+    /// bila `logout_others`, semua sesi lain dicabut, tapi perangkat ini tetap
+    /// masuk karena sesinya diterbitkan ulang sesudah titik pencabutan.
+    pub async fn change_password(
+        &self,
+        claims: &Claims,
+        current: &str,
+        new: &str,
+        logout_others: bool,
+        meta: &SessionMeta,
+    ) -> anyhow::Result<String> {
+        if !self
+            .rate
+            .allow(&format!("chgpw:{}", claims.user_id), LOGIN_MAX_PER_WINDOW, LOGIN_WINDOW_SECS)
+        {
+            anyhow::bail!("Terlalu banyak percobaan, coba lagi nanti");
+        }
+        let (hash, _) = self
+            .users
+            .password_state(&claims.user_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Akun tidak ditemukan"))?;
+        if !verify_password(current, &hash) {
+            anyhow::bail!("Kata sandi saat ini salah");
+        }
+        validate_new_password(new)?;
+        if current == new {
+            anyhow::bail!("Kata sandi baru harus berbeda dari yang sekarang");
+        }
+
+        let new_hash = hash_password(new)?;
+        let now = Utc::now();
+        self.users.update_password(&claims.user_id, &new_hash, now, false).await?;
+        self.event(&claims.user_id, "sandi_diubah", meta).await;
+        let token = if logout_others {
+            let t = self.revoke_others_and_reissue(claims, meta).await?;
+            self.event(&claims.user_id, "keluar_semua", meta).await;
+            t
+        } else {
+            match &claims.session_id {
+                Some(sid) => self.token_for(&claims.user_id, &claims.role, sid),
+                None => self.start_session(&claims.user_id, &claims.role, meta).await?,
+            }
+        };
+
+        // Pemberitahuan keamanan ke WhatsApp pemilik — best-effort: password
+        // sudah berganti, WAHA yang mati tak boleh membuatnya tampak gagal.
+        if let Some(u) = self.users.find_by_id(&claims.user_id).await? {
+            let waha = self.waha.clone();
+            let text = wa_message::password_changed(&u.name, logout_others);
+            let chat = phone::to_waha_chat_id(&u.phone);
+            tokio::spawn(async move {
+                if let Err(e) = waha.send_text(&chat, &text).await {
+                    tracing::warn!(error = %e, "WA notifikasi ganti password gagal");
+                }
+            });
+        }
+
+        Ok(token)
     }
 
     /// Tahap 1 pendaftaran: validasi → generate password+OTP acak → **kirim
@@ -133,7 +469,12 @@ impl AuthService {
 
     /// Tahap 2: cocokkan OTP (constant-time) → INSERT user sungguhan →
     /// hapus draf → terbitkan sesi.
-    pub async fn register_verify(&self, phone_raw: &str, otp_input: &str) -> anyhow::Result<(PublicUser, String)> {
+    pub async fn register_verify(
+        &self,
+        phone_raw: &str,
+        otp_input: &str,
+        meta: &SessionMeta,
+    ) -> anyhow::Result<(PublicUser, String)> {
         let phone_norm = phone::normalize(phone_raw).ok_or_else(|| anyhow::anyhow!("Nomor HP tidak valid"))?;
         if !self
             .rate
@@ -166,7 +507,8 @@ impl AuthService {
             .create(&phone_norm, &pending.name, &pending.role, &pending.password_hash)
             .await?;
         self.otp.delete(&phone_norm).await?;
-        let session = self.issue_session(&user.id, &user.role);
+        let session = self.start_session(&user.id, &user.role, meta).await?;
+        self.event(&user.id, "login_berhasil", meta).await;
         Ok((user, session))
     }
 
@@ -174,7 +516,12 @@ impl AuthService {
     /// verifikasi bcrypt terhadap hash tetap (`dummy_hash`) supaya waktu
     /// respons "nomor salah" tak terbedakan dari "password salah" —
     /// mencegah pencacahan nomor terdaftar lewat timing.
-    pub async fn login(&self, phone_raw: &str, password: &str) -> anyhow::Result<(PublicUser, String)> {
+    pub async fn login(
+        &self,
+        phone_raw: &str,
+        password: &str,
+        meta: &SessionMeta,
+    ) -> anyhow::Result<(PublicUser, String)> {
         let phone_norm = phone::normalize(phone_raw).ok_or_else(|| anyhow::anyhow!("Nomor HP tidak valid"))?;
         if !self
             .rate
@@ -189,7 +536,14 @@ impl AuthService {
             anyhow::bail!("Nomor HP atau password salah");
         };
 
+        let beku = self.security.is_frozen(&u.id).await?;
         if verify_password(password, &u.password_hash) {
+            // Akun dibekukan: password lama mungkin sudah bocor — hanya
+            // password baru dari Lupa Password (dikirim ke WA pemilik) yang
+            // boleh membukanya.
+            if beku {
+                anyhow::bail!("Akun sedang dibekukan. Gunakan \"Lupa password?\" untuk membukanya kembali lewat WhatsApp.");
+            }
             // Pemilik masih ingat password lamanya → permintaan "lupa
             // password" yang tertunda (mungkin dibuat orang lain) dibatalkan.
             if u.pending_password_hash.is_some() {
@@ -201,12 +555,18 @@ impl AuthService {
                 _ => false,
             };
             if !pending_ok {
+                self.event(&u.id, "login_gagal", meta).await;
                 anyhow::bail!("Nomor HP atau password salah");
             }
             self.users.promote_pending_password(&u.id).await?;
+            if beku {
+                self.security.set_frozen(&u.id, false).await?;
+                self.event(&u.id, "akun_dipulihkan", meta).await;
+            }
         }
 
-        let session = self.issue_session(&u.id, &u.role);
+        let session = self.start_session(&u.id, &u.role, meta).await?;
+        self.event(&u.id, "login_berhasil", meta).await;
         Ok((PublicUser { id: u.id, name: u.name, phone: u.phone, role: u.role }, session))
     }
 
@@ -218,7 +578,7 @@ impl AuthService {
     /// disimpan tertunda dan baru jadi resmi saat dipakai login (lihat
     /// `login`). Nomor tak terdaftar dibalas sukses yang sama persis —
     /// form ini tak boleh jadi alat mengecek nomor mana yang punya akun.
-    pub async fn forgot_password(&self, phone_raw: &str) -> anyhow::Result<()> {
+    pub async fn forgot_password(&self, phone_raw: &str, meta: &SessionMeta) -> anyhow::Result<()> {
         let phone_norm = phone::normalize(phone_raw).ok_or_else(|| anyhow::anyhow!("Nomor HP tidak valid"))?;
         if !self.rate.allow(&format!("forgot:{phone_norm}"), FORGOT_MAX_PER_HOUR, 3600) {
             anyhow::bail!("Terlalu banyak permintaan, coba lagi nanti");
@@ -235,6 +595,7 @@ impl AuthService {
 
         let expires_at = Utc::now() + Duration::hours(PENDING_PASSWORD_TTL_HOURS);
         self.users.set_pending_password(&u.id, &hash, expires_at).await?;
+        self.event(&u.id, "lupa_sandi", meta).await;
         Ok(())
     }
 
@@ -260,7 +621,12 @@ impl AuthService {
     }
 
     /// Tahap 2 ganti nomor. Sesi tetap sah (token memuat user_id, bukan nomor).
-    pub async fn verify_phone_change(&self, user_id: &str, otp_input: &str) -> anyhow::Result<PublicUser> {
+    pub async fn verify_phone_change(
+        &self,
+        user_id: &str,
+        otp_input: &str,
+        meta: &SessionMeta,
+    ) -> anyhow::Result<PublicUser> {
         if !self
             .rate
             .allow(&format!("phonechg-verify:{user_id}"), VERIFY_MAX_PER_WINDOW, VERIFY_WINDOW_SECS)
@@ -288,6 +654,7 @@ impl AuthService {
 
         let user = self.users.update_phone(user_id, &pending.new_phone).await?;
         self.phone_change.delete(user_id).await?;
+        self.event(user_id, "nomor_diubah", meta).await;
         Ok(user)
     }
 }
@@ -303,6 +670,25 @@ pub async fn ensure_admin_seed(users: &UserRepository, phone_raw: &str, name: &s
     let hash = hash_password(password)?;
     users.create_admin(&phone_norm, name, &hash).await?;
     tracing::info!(phone = %phone_norm, "seed: akun admin dibuat");
+    Ok(())
+}
+
+/// Aturan kata sandi baru — SAMA dengan daftar syarat di halaman ganti sandi
+/// (`web/pages/change_password.rs`); simbol dianjurkan tapi tidak wajib.
+pub fn validate_new_password(p: &str) -> anyhow::Result<()> {
+    if p.chars().count() < 8 {
+        anyhow::bail!("Kata sandi baru minimal 8 karakter");
+    }
+    if p.chars().count() > 72 {
+        // bcrypt hanya memakai 72 byte pertama — sisanya diam-diam diabaikan.
+        anyhow::bail!("Kata sandi baru maksimal 72 karakter");
+    }
+    if !(p.chars().any(|c| c.is_uppercase()) && p.chars().any(|c| c.is_lowercase())) {
+        anyhow::bail!("Kata sandi baru harus memuat huruf besar dan huruf kecil");
+    }
+    if !p.chars().any(|c| c.is_ascii_digit()) {
+        anyhow::bail!("Kata sandi baru harus memuat minimal 1 angka");
+    }
     Ok(())
 }
 
@@ -338,6 +724,16 @@ fn constant_time_eq(a: &str, b: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn aturan_kata_sandi_baru() {
+        assert!(validate_new_password("Rahasia1").is_ok());
+        assert!(validate_new_password("Rahasia!9x").is_ok());
+        assert!(validate_new_password("Rhs1").is_err()); // terlalu pendek
+        assert!(validate_new_password("rahasia123").is_err()); // tanpa huruf besar
+        assert!(validate_new_password("RAHASIA123").is_err()); // tanpa huruf kecil
+        assert!(validate_new_password("RahasiaSaja").is_err()); // tanpa angka
+    }
+
     use super::*;
 
     #[test]

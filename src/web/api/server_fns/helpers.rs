@@ -18,6 +18,24 @@ pub(super) async fn current_claims() -> Option<crate::service::auth::Claims> {
     crate::middleware::auth::current_claims(&headers, &state.auth_svc)
 }
 
+/// User-Agent & IP asal request untuk sesi/riwayat keamanan. Di produksi app
+/// ada di belakang pingora, jadi IP klien diambil dari header proxy
+/// (X-Forwarded-For elemen pertama, lalu X-Real-IP); tanpa header = "".
+#[cfg(feature = "ssr")]
+pub(super) async fn request_meta() -> crate::service::auth::SessionMeta {
+    use axum::http::HeaderMap;
+    let Ok(headers) = leptos_axum::extract::<HeaderMap>().await else {
+        return Default::default();
+    };
+    let get = |k: &str| headers.get(k).and_then(|v| v.to_str().ok()).map(str::trim).unwrap_or("");
+    let ip = get("x-forwarded-for").split(',').next().unwrap_or("").trim();
+    let ip = if ip.is_empty() { get("x-real-ip") } else { ip };
+    crate::service::auth::SessionMeta {
+        user_agent: get("user-agent").chars().take(300).collect(),
+        ip: ip.chars().take(64).collect(),
+    }
+}
+
 /// SECURITY: server function adalah batas otorisasi SEBENARNYA — guard rute
 /// sisi klien (`web/app/guards.rs`) hanya menyembunyikan UI dan bisa dilewati
 /// dengan memanggil `/api-fn/*` langsung. Tiap server fn yang mengubah data

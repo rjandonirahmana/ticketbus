@@ -3,15 +3,13 @@
 
 use chrono::Datelike;
 use leptos::prelude::*;
-use leptos_router::hooks::use_navigate;
 
-use crate::web::api::{create_order, list_schedules_month, list_schedules_upcoming};
-use crate::web::app::SessionResource;
+use crate::web::api::{list_schedules_month, list_schedules_upcoming};
 use crate::web::components::{
-    clean_error, format_rupiah, format_tanggal, format_tanggal_panjang, min_fare, spawn_client, tanggal_parts,
-    today_wib, week_start, FareCalendar, Icon, OpLogo, RouteTimeline, TripCard,
+    format_rupiah, format_tanggal, format_tanggal_panjang, min_fare, tanggal_parts, today_wib, week_start,
+    FareCalendar, Icon, TripCard,
 };
-use crate::web::models::{NewOrder, Schedule};
+use crate::web::models::Schedule;
 
 /// Filter waktu keberangkatan di bawah kalender.
 #[derive(Clone, Copy, PartialEq)]
@@ -60,8 +58,6 @@ impl Waktu {
 
 #[component]
 pub fn BrowsePage() -> impl IntoView {
-    let session = use_context::<SessionResource>().expect("SessionResource missing");
-    let navigate = use_navigate();
 
     let schedules = Resource::new(|| (), |_| list_schedules_upcoming());
 
@@ -90,84 +86,6 @@ pub fn BrowsePage() -> impl IntoView {
             Ok::<_, ServerFnError>(list)
         },
     );
-
-    let selected = RwSignal::new(None::<Schedule>);
-    let jumlah = RwSignal::new(1i32);
-    let nama_pemesan = RwSignal::new(String::new());
-    let telp_pemesan = RwSignal::new(String::new());
-    let error = RwSignal::new(String::new());
-    let busy = RwSignal::new(false);
-
-    // Prefill nama/no.HP dari sesi begitu diketahui, tapi jangan timpa yang
-    // sudah diketik user.
-    Effect::new(move |_| {
-        if let Some(Ok(Some(user))) = session.get() {
-            if nama_pemesan.get_untracked().is_empty() {
-                nama_pemesan.set(user.name.clone());
-            }
-            if telp_pemesan.get_untracked().is_empty() {
-                telp_pemesan.set(user.phone.clone());
-            }
-        }
-    });
-
-    // Alihkan ke login lewat sinyal — `Callback` butuh closure Send+Sync,
-    // sedangkan fungsi `navigate` tidak.
-    let need_login = RwSignal::new(false);
-    {
-        let navigate = navigate.clone();
-        Effect::new(move |_| {
-            if need_login.get() {
-                need_login.set(false);
-                navigate("/login", Default::default());
-            }
-        });
-    }
-
-    let open_buy = Callback::new(move |s: Schedule| {
-        let user = session.get_untracked().and_then(|r| r.ok()).flatten();
-        match user {
-            None => need_login.set(true),
-            Some(u) if u.role != "buyer" => {
-                error.set("Hanya akun penumpang yang bisa membeli tiket".into());
-            }
-            Some(_) => {
-                error.set(String::new());
-                jumlah.set(1);
-                selected.set(Some(s));
-            }
-        }
-    });
-
-    let submit_order = move |_| {
-        let Some(schedule) = selected.get_untracked() else {
-            return;
-        };
-        let input = NewOrder {
-            schedule_id: schedule.id,
-            jumlah_tiket: jumlah.get_untracked(),
-            nama_pemesan: nama_pemesan.get_untracked(),
-            telp_pemesan: telp_pemesan.get_untracked(),
-        };
-        if input.jumlah_tiket <= 0 {
-            error.set("Jumlah tiket minimal 1".into());
-            return;
-        }
-        error.set(String::new());
-        busy.set(true);
-        let navigate = navigate.clone();
-        spawn_client(async move {
-            match create_order(input).await {
-                Ok(order) => {
-                    schedules.refetch();
-                    month_schedules.refetch();
-                    navigate(&format!("/orders/{}", order.id), Default::default());
-                }
-                Err(e) => error.set(clean_error(&e.to_string())),
-            }
-            busy.set(false);
-        });
-    };
 
     let all = move || schedules.get().and_then(|r| r.ok()).unwrap_or_default();
     let filtered = move || {
@@ -440,7 +358,7 @@ pub fn BrowsePage() -> impl IntoView {
                                     <div class="trip-grid">
                                         {list
                                             .into_iter()
-                                            .map(|s| view! { <TripCard schedule=s on_pick=open_buy bookable=bookable /> })
+                                            .map(|s| view! { <TripCard schedule=s bookable=bookable /> })
                                             .collect_view()}
                                     </div>
                                 }
@@ -478,10 +396,6 @@ pub fn BrowsePage() -> impl IntoView {
                         <span class="pill pill-primary">{move || format!("{} jadwal", filtered().len())}</span>
                     </Suspense>
                 </div>
-                {move || {
-                    (!error.get().is_empty() && selected.get().is_none())
-                        .then(|| view! { <p class="alert alert-error">{error.get()}</p> })
-                }}
                 <Suspense fallback=|| view! { <div class="skeleton-card"></div> }>
                     {move || {
                         let list = filtered();
@@ -498,7 +412,7 @@ pub fn BrowsePage() -> impl IntoView {
                                 <div class="trip-grid">
                                     {list
                                         .into_iter()
-                                        .map(|s| view! { <TripCard schedule=s on_pick=open_buy /> })
+                                        .map(|s| view! { <TripCard schedule=s /> })
                                         .collect_view()}
                                 </div>
                             }
@@ -538,169 +452,6 @@ pub fn BrowsePage() -> impl IntoView {
                 </div>
             </section>
 
-            {move || {
-                selected
-                    .get()
-                    .map(|s| {
-                        let submit_order = submit_order.clone();
-                        let sisa = s.sisa_kursi();
-                        let max_kursi = sisa.max(1);
-                        let harga = s.harga;
-                        view! {
-                            <div class="modal-overlay" on:click=move |_| selected.set(None)>
-                                <div class="sheet" on:click=|ev| ev.stop_propagation()>
-                                    <div class="sheet-grip"></div>
-                                    <div class="sheet-header">
-                                        <div>
-                                            <span class="label-caps">"Pemesanan"</span>
-                                            <h3>"Pilih Kursi & Penumpang"</h3>
-                                        </div>
-                                        <button type="button" class="icon-btn" title="Tutup" on:click=move |_| selected.set(None)>
-                                            <Icon name="close" />
-                                        </button>
-                                    </div>
-                                    <div class="sheet-body">
-                                        <div class="card trip-summary">
-                                            <div class="trip-head">
-                                                <OpLogo name=s.armada_name.clone() color=s.armada_color_hex.clone() />
-                                                <div class="trip-op">
-                                                    <h3>
-                                                        {s.armada_name.clone()}
-                                                        <Icon name="verified" filled=true class="verified" />
-                                                    </h3>
-                                                    <p>
-                                                        <Icon name="calendar_today" />
-                                                        {format_tanggal(&s.tanggal)}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <RouteTimeline
-                                                jam=s.jam.clone()
-                                                from=s.lokasi_jemput.clone()
-                                                to=s.tujuan.clone()
-                                                mid="Langsung"
-                                            />
-                                        </div>
-
-                                        <div class="sub-head">
-                                            <h4>"Jumlah Kursi"</h4>
-                                            <span class="pill pill-ok">{format!("Sisa {sisa} kursi")}</span>
-                                        </div>
-                                        <div class="stepper">
-                                            <button
-                                                type="button"
-                                                class="icon-btn"
-                                                disabled={move || jumlah.get() <= 1}
-                                                on:click=move |_| jumlah.update(|n| *n = (*n - 1).max(1))
-                                            >
-                                                <Icon name="remove" />
-                                            </button>
-                                            <span class="stepper-val">
-                                                <Icon name="event_seat" />
-                                                {move || format!("{} kursi", jumlah.get())}
-                                            </span>
-                                            <button
-                                                type="button"
-                                                class="icon-btn"
-                                                disabled={move || jumlah.get() >= max_kursi}
-                                                on:click=move |_| jumlah.update(|n| *n = (*n + 1).min(max_kursi))
-                                            >
-                                                <Icon name="add" />
-                                            </button>
-                                        </div>
-
-                                        <div class="sub-head">
-                                            <h4>"Data Pemesan"</h4>
-                                            <span class="pill pill-primary">"Sesuai KTP"</span>
-                                        </div>
-                                        <div class="card form-card">
-                                            <label class="field">
-                                                <span class="field-label">"Nama Lengkap"</span>
-                                                <span class="input-wrap">
-                                                    <Icon name="person" />
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Nama pemesan"
-                                                        prop:value=move || nama_pemesan.get()
-                                                        on:input=move |ev| nama_pemesan.set(event_target_value(&ev))
-                                                    />
-                                                </span>
-                                            </label>
-                                            <label class="field">
-                                                <span class="field-label">"No. WhatsApp / HP"</span>
-                                                <span class="input-wrap">
-                                                    <Icon name="chat" />
-                                                    <input
-                                                        type="tel"
-                                                        placeholder="08xx"
-                                                        prop:value=move || telp_pemesan.get()
-                                                        on:input=move |ev| telp_pemesan.set(event_target_value(&ev))
-                                                    />
-                                                </span>
-                                            </label>
-                                            <div class="info-row">
-                                                <Icon name="location_on" />
-                                                <div>
-                                                    <strong>{format!("Titik jemput: {}", s.lokasi_jemput)}</strong>
-                                                    <small>{format!("Harap tiba sebelum {}", s.jam)}</small>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="sub-head">
-                                            <h4>"Rincian Pembayaran"</h4>
-                                        </div>
-                                        <div class="card bill">
-                                            <div class="bill-row">
-                                                <span>{move || format!("Tarif kursi × {}", jumlah.get())}</span>
-                                                <span class="num">
-                                                    {move || format!("Rp {}", format_rupiah(harga * jumlah.get() as i64))}
-                                                </span>
-                                            </div>
-                                            <div class="bill-row">
-                                                <span>"Biaya layanan"</span>
-                                                <span class="pill pill-ok">"Gratis"</span>
-                                            </div>
-                                            <div class="bill-row bill-total">
-                                                <span>"Total Tagihan"</span>
-                                                <span class="num">
-                                                    {move || format!("Rp {}", format_rupiah(harga * jumlah.get() as i64))}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <p class="note-card">
-                                            <Icon name="verified" />
-                                            "Tiket resmi mitra PO LajuBus. Kode order langsung terbit setelah konfirmasi."
-                                        </p>
-                                        {move || {
-                                            (!error.get().is_empty())
-                                                .then(|| view! { <p class="alert alert-error">{error.get()}</p> })
-                                        }}
-                                    </div>
-                                    <div class="sheet-footer">
-                                        <div class="total-block">
-                                            <span class="label-caps">
-                                                {move || format!("Total · {} kursi", jumlah.get())}
-                                            </span>
-                                            <strong class="price-lg">
-                                                {move || format!("Rp {}", format_rupiah(harga * jumlah.get() as i64))}
-                                            </strong>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            class="btn btn-cta"
-                                            on:click=submit_order
-                                            disabled=move || busy.get()
-                                        >
-                                            {move || if busy.get() { "Memproses…" } else { "Lanjut Bayar" }}
-                                            <Icon name="arrow_forward" />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        }
-                    })
-            }}
         </div>
     }
 }

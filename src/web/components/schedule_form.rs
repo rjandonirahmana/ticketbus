@@ -36,7 +36,7 @@ fn StepHead(
                 <h3>{format!("{num}. {title}")}</h3>
                 <p>{sub}</p>
             </div>
-            <span class="pill pill-primary">{format!("Langkah {num}/3")}</span>
+            <span class="pill pill-primary">{format!("Langkah {num}/4")}</span>
         </div>
     }
 }
@@ -53,6 +53,9 @@ pub fn ScheduleForm(armadas: Vec<Armada>, #[prop(into)] on_saved: Callback<()>) 
     let f_driver_nama = RwSignal::new(String::new());
     let f_driver_telp = RwSignal::new(String::new());
     let f_catatan = RwSignal::new(String::new());
+    let f_konfig = RwSignal::new("2-2".to_string());
+    let f_dua_dek = RwSignal::new(false);
+    let f_wanita = RwSignal::new(String::new());
     let form_error = RwSignal::new(String::new());
     let form_ok = RwSignal::new(String::new());
     let busy = RwSignal::new(false);
@@ -69,6 +72,9 @@ pub fn ScheduleForm(armadas: Vec<Armada>, #[prop(into)] on_saved: Callback<()>) 
             kapasitas: f_kapasitas.get_untracked().trim().parse().unwrap_or(40),
             driver_nama: f_driver_nama.get_untracked(),
             driver_telp: f_driver_telp.get_untracked(),
+            konfigurasi: f_konfig.get_untracked(),
+            dua_dek: f_dua_dek.get_untracked(),
+            kursi_wanita: f_wanita.get_untracked(),
         };
         if input.armada_id.is_empty() || input.tanggal.is_empty() {
             form_error.set("Armada dan tanggal wajib diisi".into());
@@ -88,6 +94,7 @@ pub fn ScheduleForm(armadas: Vec<Armada>, #[prop(into)] on_saved: Callback<()>) 
                     f_catatan.set(String::new());
                     f_driver_nama.set(String::new());
                     f_driver_telp.set(String::new());
+                    f_wanita.set(String::new());
                     on_saved.run(());
                 }
                 Err(e) => {
@@ -186,7 +193,60 @@ pub fn ScheduleForm(armadas: Vec<Armada>, #[prop(into)] on_saved: Callback<()>) 
             </section>
 
             <section class="card form-card">
-                <StepHead num="3" title="Driver & Catatan" sub="Kontak kru yang bertugas" icon="badge" />
+                <StepHead num="3" title="Denah Kursi" sub="Tata letak yang dilihat penumpang saat memilih kursi" icon="event_seat" />
+                <div class="field-grid">
+                    <label class="field">
+                        <span class="field-label">"Konfigurasi"</span>
+                        <span class="input-wrap">
+                            <Icon name="grid_view" />
+                            <select prop:value=move || f_konfig.get() on:change=move |ev| f_konfig.set(event_target_value(&ev))>
+                                {crate::web::seats::KONFIGURASI
+                                    .into_iter()
+                                    .map(|(v, label)| view! { <option value=v>{label}</option> })
+                                    .collect_view()}
+                            </select>
+                        </span>
+                    </label>
+                    <label class="field">
+                        <span class="field-label">"Dek"</span>
+                        <span class="input-wrap">
+                            <Icon name="stacks" />
+                            <select
+                                prop:value=move || if f_dua_dek.get() { "2" } else { "1" }
+                                on:change=move |ev| f_dua_dek.set(event_target_value(&ev) == "2")
+                            >
+                                <option value="1">"1 Dek"</option>
+                                <option value="2">"2 Dek (Double Decker)"</option>
+                            </select>
+                        </span>
+                    </label>
+                </div>
+                <label class="field">
+                    <span class="field-label">"Kursi Khusus Wanita (opsional)"</span>
+                    <span class="input-wrap">
+                        <Icon name="woman" />
+                        <input
+                            type="text"
+                            placeholder="Mis. 02A, 06B"
+                            prop:value=move || f_wanita.get()
+                            on:input=move |ev| f_wanita.set(event_target_value(&ev))
+                        />
+                    </span>
+                </label>
+                <p class="field-hint">
+                    {move || {
+                        let n = f_kapasitas.get().trim().parse::<i32>().unwrap_or(0);
+                        let denah = crate::web::seats::layout(n, &f_konfig.get(), f_dua_dek.get());
+                        match (denah.first(), denah.last()) {
+                            (Some(a), Some(b)) => format!("Denah: {} kursi, nomor {} – {}", denah.len(), a.kode, b.kode),
+                            _ => "Isi kapasitas kursi untuk melihat penomoran".to_string(),
+                        }
+                    }}
+                </p>
+            </section>
+
+            <section class="card form-card">
+                <StepHead num="4" title="Driver & Catatan" sub="Kontak kru yang bertugas" icon="badge" />
                 <div class="field-grid">
                     <Field label="Nama Driver" icon="person">
                         <input

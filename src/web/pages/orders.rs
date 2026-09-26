@@ -48,7 +48,11 @@ pub fn OrdersPage() -> impl IntoView {
                                                         {format_tanggal(&o.tanggal)}
                                                         <span class="dot-sep"></span>
                                                         <Icon name="event_seat" />
-                                                        {format!("{} kursi", o.jumlah_tiket)}
+                                                        {if o.kursi.is_empty() {
+                                                            format!("{} kursi", o.jumlah_tiket)
+                                                        } else {
+                                                            format!("Kursi {}", o.kursi.join(", "))
+                                                        }}
                                                     </p>
                                                 </div>
                                                 <div class="ticket-stub">

@@ -69,7 +69,7 @@ COPY Cargo.toml Cargo.lock build.rs ./
 # ini build.rs panic. Pelajaran yang sama dari e-ticketing.
 COPY migration/ ./migration/
 # style/ = `tailwind-input-file`, public/ = `assets-dir` (cargo-leptos gagal bila
-# tak ada). public/ berisi .gitkeep supaya tetap ikut ter-commit walau kosong.
+# tak ada). public/ memuat ikon app + manifest yang disajikan dari root situs.
 COPY style/ ./style/
 COPY public/ ./public/
 

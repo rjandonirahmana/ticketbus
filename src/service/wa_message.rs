@@ -83,6 +83,37 @@ pub fn phone_change(otp: &str, ttl_menit: i64) -> String {
     )
 }
 
+/// Pemberitahuan keamanan: password baru saja diganti dari halaman Akun.
+pub fn password_changed(name: &str, logout_others: bool) -> String {
+    let sesi = if logout_others {
+        "📱 Semua perangkat lain sudah *dikeluarkan* dari akun Anda.\n"
+    } else {
+        ""
+    };
+    format!(
+        "{BRAND}\n\n\
+         Halo *{name}* 👋\n\
+         🔐 Kata sandi akun LajuBus Anda *baru saja diubah*.\n\
+         {sesi}\n\
+         ✅ Bila ini Anda, tak perlu melakukan apa pun.\n\
+         ⚠️ Bukan Anda? Segera gunakan *Lupa Password* di halaman masuk dan hubungi CS LajuBus.\n\n\
+         {FOOTER}"
+    )
+}
+
+/// Pemberitahuan: akun dibekukan dari Pusat Keamanan.
+pub fn account_frozen(name: &str) -> String {
+    format!(
+        "{BRAND}\n\n\
+         Halo *{name}* 👋\n\
+         🧊 Akun LajuBus Anda *dibekukan sementara* dan semua perangkat sudah dikeluarkan.\n\n\
+         🔓 Untuk membukanya kembali: buka halaman masuk → *Lupa password?* → masukkan nomor ini. \
+         Password baru akan dikirim lewat WhatsApp, dan login dengannya membuka akun Anda.\n\n\
+         ⚠️ Bukan Anda yang membekukan? Segera hubungi CS LajuBus.\n\n\
+         {FOOTER}"
+    )
+}
+
 fn jenis_label(jenis: &str) -> &'static str {
     match jenis {
         "paket" => "Paket Wisata",

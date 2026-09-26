@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f4c81" />
+      <stop offset="100%" stop-color="#082948" />
+    </linearGradient>
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ff8c38" />
+      <stop offset="100%" stop-color="#f97316" />
+    </linearGradient>
+    <linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a" />
+      <stop offset="100%" stop-color="#0f2b48" />
+    </linearGradient>
+    <linearGradient id="cyanReflection" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#0284c7" stop-opacity="0.1" />
+    </linearGradient>
+    <linearGradient id="busBodyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#e2e8f0" />
+    </linearGradient>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="130%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#021426" flood-opacity="0.45" />
+    </filter>
+    <filter id="glowOrange" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#f97316" flood-opacity="0.4" />
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bgGrad)" />
+  <rect x="2" y="2" width="508" height="508" rx="114" stroke="#ffffff" stroke-opacity="0.15" stroke-width="4" />
+  <g opacity="0.95">
+    <path d="M52 188 H128" stroke="url(#orangeGrad)" stroke-width="16" stroke-linecap="round" />
+    <path d="M34 256 H114" stroke="#ffffff" stroke-width="14" stroke-linecap="round" opacity="0.85" />
+    <path d="M58 324 H134" stroke="url(#orangeGrad)" stroke-width="16" stroke-linecap="round" />
+    <circle cx="152" cy="188" r="7" fill="#f97316" />
+    <circle cx="140" cy="256" r="6" fill="#ffffff" opacity="0.8" />
+    <circle cx="158" cy="324" r="7" fill="#f97316" />
+  </g>
+  <g filter="url(#softShadow)">
+    <path d="M192 120 C192 98 210 80 232 80 H384 C406 80 424 98 424 120 V388 C424 404 411 418 395 418 H221 C205 418 192 404 192 388 V120 Z" fill="url(#busBodyGrad)" />
+    <path d="M232 80 H384 C402 80 417 92 422 108 H194 C199 92 214 80 232 80 Z" fill="url(#orangeGrad)" />
+    <rect x="240" y="98" width="136" height="14" rx="7" fill="#082948" />
+    <circle cx="254" cy="105" r="3" fill="#38bdf8" />
+    <rect x="264" y="103" width="88" height="4" rx="2" fill="#ffedd5" />
+    <circle cx="362" cy="105" r="3" fill="#38bdf8" />
+    <path d="M214 132 H402 C408 132 412 136 412 142 V226 C412 234 406 240 398 240 H218 C210 240 204 234 204 226 V142 C204 136 208 132 214 132 Z" fill="url(#glassGrad)" />
+    <path d="M220 140 L260 140 L226 232 H212 Z" fill="url(#cyanReflection)" />
+    <path d="M272 140 L288 140 L268 232 H252 Z" fill="#ffffff" opacity="0.15" />
+    <path d="M236 230 C236 216 250 216 250 230 Z" fill="#1e293b" opacity="0.5" />
+    <rect x="204" y="244" width="208" height="8" rx="4" fill="#94a3b8" />
+    <rect x="256" y="245" width="104" height="6" rx="3" fill="#cbd5e1" />
+    <rect x="252" y="324" width="112" height="44" rx="10" fill="#0f2b48" />
+    <line x1="266" y1="337" x2="350" y2="337" stroke="#334155" stroke-width="3" stroke-linecap="round" />
+    <line x1="262" y1="346" x2="354" y2="346" stroke="#475569" stroke-width="3" stroke-linecap="round" />
+    <line x1="268" y1="355" x2="348" y2="355" stroke="#334155" stroke-width="3" stroke-linecap="round" />
+    <polygon points="308,338 316,346 308,354 300,346" fill="#f97316" />
+    <g filter="url(#glowOrange)">
+      <path d="M214 286 C214 278 222 274 236 274 H250 V296 H228 C220 296 214 292 214 286 Z" fill="#f97316" />
+      <circle cx="234" cy="285" r="5" fill="#ffffff" />
+      <path d="M214 272 H254" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" />
+    </g>
+    <g filter="url(#glowOrange)">
+      <path d="M402 286 C402 278 394 274 380 274 H366 V296 H388 C396 296 402 292 402 286 Z" fill="#f97316" />
+      <circle cx="382" cy="285" r="5" fill="#ffffff" />
+      <path d="M402 272 H362" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" />
+    </g>
+    <rect x="216" y="340" width="22" height="12" rx="4" fill="#64748b" />
+    <circle cx="227" cy="346" r="3" fill="#ffffff" opacity="0.9" />
+    <rect x="378" y="340" width="22" height="12" rx="4" fill="#64748b" />
+    <circle cx="389" cy="346" r="3" fill="#ffffff" opacity="0.9" />
+    <path d="M210 398 L240 404 H376 L406 398 C409 406 402 414 394 414 H222 C214 414 207 406 210 398 Z" fill="#0f172a" />
+    <rect x="212" y="416" width="36" height="24" rx="8" fill="#090d16" />
+    <rect x="218" y="420" width="24" height="14" rx="5" fill="#1e293b" />
+    <rect x="368" y="416" width="36" height="24" rx="8" fill="#090d16" />
+    <rect x="374" y="420" width="24" height="14" rx="5" fill="#1e293b" />
+  </g>
+</svg>

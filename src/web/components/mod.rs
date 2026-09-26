@@ -14,7 +14,7 @@ pub mod schedule_form;
 pub mod schedule_modal;
 pub mod theme_toggle;
 
-pub use app_chrome::{AppBar, BottomNav, BrandLogo, PageHead};
+pub use app_chrome::{AccountTabs, AppBar, BottomNav, BrandLogo, PageHead};
 pub use armada_manager::ArmadaManager;
 pub use auth_layout::{AuthLayout, AuthTab};
 pub use calendar_grid::CalendarGrid;

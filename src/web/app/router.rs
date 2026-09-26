@@ -8,8 +8,8 @@ use leptos_router::{
 };
 
 use crate::web::pages::{
-    AccountPage, AdminPage, BrowsePage, ForgotPasswordPage, LoginPage, MerchantPage, NotFoundPage, OrderDetailPage, OrdersPage, RegisterPage,
-    SewaPage, VerifyOtpPage, WisataPage,
+    AccountPage, AdminPage, BrowsePage, ChangePasswordPage, ForgotPasswordPage, LoginPage, MerchantPage, NotFoundPage, OrderDetailPage, OrdersPage, RegisterPage,
+    HelpPage, SeatSelectPage, SecurityPage, SewaPage, VerifyOtpPage, WisataPage,
 };
 
 use crate::web::components::{AppBar, BottomNav};
@@ -32,6 +32,8 @@ pub fn App() -> impl IntoView {
                 <FlatRoutes fallback=NotFoundPage>
                     <Route path=path!("/") view=BrowsePage />
                     <Route path=path!("/sewa") view=SewaPage />
+                    <Route path=path!("/pesan/:id") view=SeatSelectPage />
+                    <Route path=path!("/bantuan") view=HelpPage />
                     <Route path=path!("/wisata") view=WisataPage />
                     <Route path=path!("/login") view=LoginPage />
                     <Route path=path!("/register") view=RegisterPage />
@@ -40,6 +42,14 @@ pub fn App() -> impl IntoView {
                     <Route
                         path=path!("/akun")
                         view=|| view! { <AnyUserGuard><AccountPage /></AnyUserGuard> }
+                    />
+                    <Route
+                        path=path!("/akun/keamanan")
+                        view=|| view! { <AnyUserGuard><SecurityPage /></AnyUserGuard> }
+                    />
+                    <Route
+                        path=path!("/akun/password")
+                        view=|| view! { <AnyUserGuard><ChangePasswordPage /></AnyUserGuard> }
                     />
                     <Route
                         path=path!("/orders")

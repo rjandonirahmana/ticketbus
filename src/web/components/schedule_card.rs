@@ -51,17 +51,13 @@ pub fn OpLogo(#[prop(into)] name: String, #[prop(into)] color: String) -> impl I
 }
 
 /// Kartu jadwal untuk penumpang (header operator, garis rute, harga + tombol
-/// pesan). `bookable=false` untuk jadwal yang sudah lewat.
+/// "Pilih Kursi" → /pesan/:id). `bookable=false` untuk jadwal yang sudah lewat.
 #[component]
-pub fn TripCard(
-    schedule: Schedule,
-    #[prop(into)] on_pick: Callback<Schedule>,
-    #[prop(default = true)] bookable: bool,
-) -> impl IntoView {
+pub fn TripCard(schedule: Schedule, #[prop(default = true)] bookable: bool) -> impl IntoView {
     let s = schedule;
     let sisa = s.sisa_kursi();
     let low = sisa > 0 && sisa <= 5;
-    let pick = s.clone();
+    let href = format!("/pesan/{}", s.id);
     let (btn_label, can_pick) = if !bookable {
         ("Sudah Berangkat", false)
     } else if sisa <= 0 {
@@ -83,7 +79,7 @@ pub fn TripCard(
                 </div>
                 <span class="class-badge">
                     <Icon name="airline_seat_recline_extra" />
-                    {format!("{} Seat", s.kapasitas)}
+                    {format!("{} Seat · {}", s.kapasitas, s.konfigurasi)}
                 </span>
             </header>
             <RouteTimeline jam=s.jam.clone() from=s.lokasi_jemput.clone() to=s.tujuan.clone() mid="Via rute PO" />
@@ -137,14 +133,22 @@ pub fn TripCard(
                         <small>"/kursi"</small>
                     </p>
                 </div>
-                <button
-                    type="button"
-                    class={if low { "btn btn-cta" } else { "btn btn-primary" }}
-                    disabled={!can_pick}
-                    on:click=move |_| on_pick.run(pick.clone())
-                >
-                    {btn_label}
-                </button>
+                {if can_pick {
+                    view! {
+                        <a href=href class=if low { "btn btn-cta" } else { "btn btn-primary" }>
+                            {btn_label}
+                            <Icon name="arrow_forward" />
+                        </a>
+                    }
+                        .into_any()
+                } else {
+                    view! {
+                        <button type="button" class="btn btn-soft" disabled=true>
+                            {btn_label}
+                        </button>
+                    }
+                        .into_any()
+                }}
             </footer>
         </article>
     }

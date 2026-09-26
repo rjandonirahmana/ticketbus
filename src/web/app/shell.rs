@@ -20,6 +20,12 @@ pub fn shell(options: leptos::config::LeptosOptions) -> impl IntoView {
 
                 <link rel="stylesheet" href="/pkg/bis.css" />
 
+                // Ikon app LajuBus: SVG untuk browser modern, PNG untuk sisanya.
+                <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+                <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+                <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+                <link rel="manifest" href="/manifest.webmanifest" />
+
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
                 <link

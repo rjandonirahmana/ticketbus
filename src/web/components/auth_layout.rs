@@ -47,15 +47,15 @@ pub fn AuthLayout(
 
             <section class="card auth-card">{children()}</section>
 
-            <div class="help-card">
+            <a href="/bantuan" class="help-card">
                 <span class="help-icon">
                     <Icon name="support_agent" />
                 </span>
                 <div>
                     <strong>"Kendala saat masuk?"</strong>
-                    <p>"Kode OTP & password baru dikirim lewat WhatsApp ke nomor terdaftar."</p>
+                    <p>"Buka Pusat Bantuan — FAQ akun & kontak CS WhatsApp."</p>
                 </div>
-            </div>
+            </a>
 
             <p class="trust-row">
                 <span>

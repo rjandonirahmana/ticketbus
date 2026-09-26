@@ -53,3 +53,10 @@ pub async fn delete_schedule(id: String) -> Result<(), ServerFnError> {
     let state = app_state().await?;
     state.schedule_svc.delete(&claims, &id).await.map_err(map_err)
 }
+
+/// Denah kursi + kursi terjual — halaman publik /pesan/:id.
+#[server(GetSeatMap, "/api-fn")]
+pub async fn get_seat_map(schedule_id: String) -> Result<Option<crate::web::models::SeatMap>, ServerFnError> {
+    let state = app_state().await?;
+    state.schedule_svc.seat_map(&schedule_id).await.map_err(map_err)
+}

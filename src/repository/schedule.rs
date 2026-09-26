@@ -7,7 +7,8 @@ use crate::web::models::{NewSchedule, Schedule};
 const SELECT_JOIN_ARMADA: &str = "
     SELECT s.id, s.armada_id, a.name AS armada_name, a.color_hex AS armada_color_hex,
            s.tanggal, s.tujuan, s.lokasi_jemput, s.jam, s.harga, s.catatan,
-           s.kapasitas, s.kursi_terjual, s.driver_nama, s.driver_telp
+           s.kapasitas, s.kursi_terjual, s.driver_nama, s.driver_telp,
+           s.konfigurasi, s.dua_dek, s.kursi_wanita
       FROM schedules s
       JOIN armadas a ON a.id = s.armada_id";
 
@@ -98,11 +99,13 @@ impl ScheduleRepository {
         if input.kapasitas <= 0 {
             anyhow::bail!("Kapasitas harus lebih dari 0");
         }
+        let kursi_wanita = crate::web::seats::parse_kode_list(&input.kursi_wanita);
         let conn = self.pool.get().await?;
         let id: Uuid = conn
             .query_one(
-                "INSERT INTO schedules (armada_id, tanggal, tujuan, lokasi_jemput, jam, harga, catatan, kapasitas, driver_nama, driver_telp)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                "INSERT INTO schedules (armada_id, tanggal, tujuan, lokasi_jemput, jam, harga, catatan, kapasitas,
+                                        driver_nama, driver_telp, konfigurasi, dua_dek, kursi_wanita)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                  RETURNING id",
                 &[
                     &armada_uuid,
@@ -115,6 +118,9 @@ impl ScheduleRepository {
                     &input.kapasitas,
                     &input.driver_nama,
                     &input.driver_telp,
+                    &input.konfigurasi,
+                    &input.dua_dek,
+                    &kursi_wanita,
                 ],
             )
             .await?
@@ -122,6 +128,16 @@ impl ScheduleRepository {
         self.get(&id.to_string())
             .await?
             .ok_or_else(|| anyhow::anyhow!("jadwal hilang setelah dibuat"))
+    }
+
+    /// Kode kursi yang sudah terjual (bernomor) untuk satu jadwal.
+    pub async fn seats_taken(&self, id: &str) -> anyhow::Result<Vec<String>> {
+        let uuid = Uuid::parse_str(id)?;
+        let conn = self.pool.get().await?;
+        let rows = conn
+            .query("SELECT kode FROM order_seats WHERE schedule_id = $1 ORDER BY kode", &[&uuid])
+            .await?;
+        Ok(rows.iter().map(|r| r.get("kode")).collect())
     }
 
     pub async fn delete(&self, id: &str) -> anyhow::Result<()> {
@@ -150,5 +166,8 @@ fn row_to_schedule(row: &tokio_postgres::Row) -> Schedule {
         kursi_terjual: row.get("kursi_terjual"),
         driver_nama: row.get("driver_nama"),
         driver_telp: row.get("driver_telp"),
+        konfigurasi: row.get("konfigurasi"),
+        dua_dek: row.get("dua_dek"),
+        kursi_wanita: row.get("kursi_wanita"),
     }
 }

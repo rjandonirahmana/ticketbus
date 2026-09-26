@@ -124,12 +124,72 @@ impl UserRepository {
         let conn = self.pool.get().await?;
         conn.execute(
             "UPDATE users SET password_hash = pending_password_hash,
-                              pending_password_hash = NULL, pending_password_expires_at = NULL
+                              pending_password_hash = NULL, pending_password_expires_at = NULL,
+                              password_changed_at = NOW()
               WHERE id = $1 AND pending_password_hash IS NOT NULL",
             &[&uuid],
         )
         .await?;
         Ok(())
+    }
+
+    /// Hash password + kapan terakhir diubah (fallback: waktu akun dibuat).
+    pub async fn password_state(&self, user_id: &str) -> anyhow::Result<Option<(String, DateTime<Utc>)>> {
+        let uuid = Uuid::parse_str(user_id)?;
+        let conn = self.pool.get().await?;
+        let row = conn
+            .query_opt(
+                "SELECT password_hash, COALESCE(password_changed_at, created_at) AS changed
+                   FROM users WHERE id = $1",
+                &[&uuid],
+            )
+            .await?;
+        Ok(row.map(|r| (r.get("password_hash"), r.get("changed"))))
+    }
+
+    /// Ganti password (sekaligus membatalkan "lupa password" yang tertunda).
+    /// `revoke_others` → sesi yang terbit sebelum `now` tak lagi berlaku.
+    pub async fn update_password(
+        &self,
+        user_id: &str,
+        hash: &str,
+        now: DateTime<Utc>,
+        revoke_others: bool,
+    ) -> anyhow::Result<()> {
+        let uuid = Uuid::parse_str(user_id)?;
+        let conn = self.pool.get().await?;
+        conn.execute(
+            "UPDATE users SET password_hash = $2, password_changed_at = $3,
+                              pending_password_hash = NULL, pending_password_expires_at = NULL,
+                              sessions_valid_after = CASE WHEN $4 THEN $3 ELSE sessions_valid_after END
+              WHERE id = $1",
+            &[&uuid, &hash, &now, &revoke_others],
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub async fn set_sessions_valid_after(&self, user_id: &str, at: DateTime<Utc>) -> anyhow::Result<()> {
+        let uuid = Uuid::parse_str(user_id)?;
+        let conn = self.pool.get().await?;
+        conn.execute("UPDATE users SET sessions_valid_after = $2 WHERE id = $1", &[&uuid, &at])
+            .await?;
+        Ok(())
+    }
+
+    /// Semua pencabutan sesi yang masih relevan — dimuat sekali saat start.
+    pub async fn session_revocations(&self) -> anyhow::Result<Vec<(String, i64)>> {
+        let conn = self.pool.get().await?;
+        let rows = conn
+            .query("SELECT id, sessions_valid_after FROM users WHERE sessions_valid_after IS NOT NULL", &[])
+            .await?;
+        Ok(rows
+            .iter()
+            .map(|r| {
+                let at: DateTime<Utc> = r.get("sessions_valid_after");
+                (r.get::<_, Uuid>("id").to_string(), at.timestamp())
+            })
+            .collect())
     }
 
     pub async fn clear_pending_password(&self, user_id: &str) -> anyhow::Result<()> {

@@ -6,6 +6,7 @@ pub mod photo;
 pub mod rating;
 pub mod rental;
 pub mod schedule;
+pub mod security;
 pub mod user;
 
 pub use armada::ArmadaRepository;

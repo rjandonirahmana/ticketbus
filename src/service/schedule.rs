@@ -34,6 +34,14 @@ impl ScheduleService {
         self.repo.get(id).await
     }
 
+    pub async fn seat_map(&self, id: &str) -> anyhow::Result<Option<crate::web::models::SeatMap>> {
+        let Some(schedule) = self.repo.get(id).await? else {
+            return Ok(None);
+        };
+        let terisi = self.repo.seats_taken(id).await?;
+        Ok(Some(crate::web::models::SeatMap { schedule, terisi }))
+    }
+
     pub async fn create(&self, actor: &Claims, input: NewSchedule) -> anyhow::Result<Schedule> {
         if input.tujuan.trim().is_empty() {
             anyhow::bail!("Tujuan/penyewa tidak boleh kosong");
@@ -41,8 +49,18 @@ impl ScheduleService {
         if input.harga < 0 {
             anyhow::bail!("Harga tidak boleh negatif");
         }
-        if input.kapasitas <= 0 {
-            anyhow::bail!("Kapasitas harus lebih dari 0");
+        if input.kapasitas <= 0 || input.kapasitas > 200 {
+            anyhow::bail!("Kapasitas harus 1–200 kursi");
+        }
+        if !crate::web::seats::KONFIGURASI.iter().any(|(k, _)| *k == input.konfigurasi) {
+            anyhow::bail!("Konfigurasi kursi tidak valid");
+        }
+        // Kursi wanita harus benar-benar ada di denah jadwal ini.
+        let denah = crate::web::seats::layout(input.kapasitas, &input.konfigurasi, input.dua_dek);
+        for kode in crate::web::seats::parse_kode_list(&input.kursi_wanita) {
+            if !denah.iter().any(|k| k.kode == kode) {
+                anyhow::bail!("Kursi wanita {kode} tidak ada di denah ({} kursi, {})", input.kapasitas, input.konfigurasi);
+            }
         }
         if actor.role == "merchant" {
             let owner = self.armadas.merchant_id_of(&input.armada_id).await?;
