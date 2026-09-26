@@ -82,6 +82,7 @@ async fn main() -> Result<()> {
 
     let state = Arc::new(AppState {
         pool: pool.clone(),
+        rate: rate_limiter.clone(),
         armada_svc: ArmadaService::new(armada_repo.clone()),
         schedule_svc: ScheduleService::new(ScheduleRepository::new(pool.clone()), armada_repo),
         photo_svc: PhotoService::new(TripPhotoRepository::new(pool.clone())),

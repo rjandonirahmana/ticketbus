@@ -82,6 +82,7 @@ web-sys = { version = "0.3", features = [
     "File",
     "FileList",
     "Storage",
+    "Location",
 ] }
 
 # ── Server-only deps (TIDAK dikompilasi untuk wasm32) ─────────────────────────

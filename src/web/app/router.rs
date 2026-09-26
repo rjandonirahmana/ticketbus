@@ -8,7 +8,7 @@ use leptos_router::{
 };
 
 use crate::web::pages::{
-    AccountPage, AdminPage, BrowsePage, ChangePasswordPage, ForgotPasswordPage, LoginPage, MerchantPage, NotFoundPage, OrderDetailPage, OrdersPage, RegisterPage,
+    AccountPage, AdminPage, BrowsePage, BusMapPage, DriverPage, ChangePasswordPage, ForgotPasswordPage, LoginPage, MerchantPage, NotFoundPage, OrderDetailPage, OrdersPage, RegisterPage,
     HelpPage, SeatSelectPage, SecurityPage, SewaPage, VerifyOtpPage, WisataPage,
 };
 
@@ -34,6 +34,8 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/sewa") view=SewaPage />
                     <Route path=path!("/pesan/:id") view=SeatSelectPage />
                     <Route path=path!("/bantuan") view=HelpPage />
+                    <Route path=path!("/peta") view=BusMapPage />
+                    <Route path=path!("/driver/:token") view=DriverPage />
                     <Route path=path!("/wisata") view=WisataPage />
                     <Route path=path!("/login") view=LoginPage />
                     <Route path=path!("/register") view=RegisterPage />

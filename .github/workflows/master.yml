@@ -87,7 +87,7 @@ jobs:
               exit 1
             fi
 
-            mkdir -p /opt/bis/riwayat
+            sudo mkdir -p /opt/bis/riwayat
             cp "$SUMBER" "$SALINAN"
             chmod 700 "$SALINAN"
 

@@ -7,7 +7,7 @@ use leptos::prelude::*;
 use crate::web::api::{list_schedules_month, list_schedules_upcoming};
 use crate::web::components::{
     format_rupiah, format_tanggal, format_tanggal_panjang, min_fare, tanggal_parts, today_wib, week_start,
-    FareCalendar, Icon, TripCard,
+    FareCalendar, Icon, RadarCard, TripCard,
 };
 use crate::web::models::Schedule;
 
@@ -251,6 +251,8 @@ pub fn BrowsePage() -> impl IntoView {
                 </div>
             </section>
 
+            <RadarCard />
+
             <section id="kalender" class="section">
                 <Suspense fallback=|| view! { <div class="skeleton-card"></div> }>
                     {
@@ -369,17 +371,17 @@ pub fn BrowsePage() -> impl IntoView {
                 </Suspense>
             </section>
 
-            <section class="promo-banner">
+            <a href="/wisata" class="promo-banner">
                 <div>
                     <span class="pill pill-cta">"Spesial Rombongan"</span>
                     <h3>"Sewa bus untuk rombongan?"</h3>
                     <p>"Mitra PO LajuBus siap untuk study tour, ziarah, dan perjalanan keluarga."</p>
                 </div>
                 <span class="promo-code">
-                    <strong>"LAJUBUS"</strong>
-                    <small>"Hubungi mitra"</small>
+                    <strong>"WISATA"</strong>
+                    <small>"Lihat paket"</small>
                 </span>
-            </section>
+            </a>
 
             <section id="jadwal" class="section">
                 <div class="section-head">

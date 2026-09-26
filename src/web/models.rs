@@ -43,6 +43,9 @@ pub struct Schedule {
     pub dua_dek: bool,
     /// Kode kursi yang diprioritaskan untuk penumpang wanita.
     pub kursi_wanita: Vec<String>,
+    /// Koordinat titik jemput (opsional, dipilih mitra di peta).
+    pub jemput_lat: Option<f64>,
+    pub jemput_lng: Option<f64>,
 }
 
 impl Schedule {
@@ -78,6 +81,10 @@ pub struct NewSchedule {
     pub dua_dek: bool,
     /// Kode kursi wanita dipisah koma (form-urlencoded server fn).
     pub kursi_wanita: String,
+    /// Koordinat titik jemput sebagai teks ("" = tidak diisi) — lebih aman
+    /// lewat form-urlencoded daripada `Option<f64>`.
+    pub jemput_lat: String,
+    pub jemput_lng: String,
 }
 
 // ── Akun & sesi ────────────────────────────────────────────────────────────
@@ -141,6 +148,33 @@ pub struct OrderDetail {
     pub created_at: String,
     pub sudah_dirating: bool,
     pub kursi: Vec<String>,
+}
+
+/// Posisi bus TERAKHIR dari HP driver.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct BusPosition {
+    pub lat: f64,
+    pub lng: f64,
+    pub speed_kmh: Option<f64>,
+    pub heading: Option<f64>,
+    /// Umur sinyal (detik) saat data diambil server.
+    pub umur_detik: i64,
+}
+
+/// Jadwal hari ini untuk peta: posisi live (bila driver berbagi lokasi)
+/// dan/atau koordinat titik jemput. Jarak dihitung di browser — lokasi
+/// penumpang tak pernah dikirim ke server.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct NearbyBus {
+    pub schedule: Schedule,
+    pub posisi: Option<BusPosition>,
+}
+
+/// Halaman driver (/driver/:token).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct DriverTrip {
+    pub schedule: Schedule,
+    pub posisi: Option<BusPosition>,
 }
 
 /// Denah untuk halaman Pilih Kursi: jadwal + kode kursi yang sudah terjual.

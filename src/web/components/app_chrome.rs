@@ -18,14 +18,14 @@ struct NavItem {
 fn nav_items(user: Option<&PublicUser>) -> Vec<NavItem> {
     let mut items = vec![
         NavItem { href: "/", label: "Beranda", icon: "directions_bus" },
-        NavItem { href: "/sewa", label: "Charter", icon: "airport_shuttle" },
+        NavItem { href: "/peta", label: "Peta Bus", icon: "near_me" },
     ];
     match user.map(|u| u.role.as_str()) {
         Some("merchant") => items.push(NavItem { href: "/merchant", label: "Mitra", icon: "storefront" }),
         Some("admin") => items.push(NavItem { href: "/admin", label: "Admin", icon: "admin_panel_settings" }),
         _ => items.push(NavItem { href: "/orders", label: "Tiket", icon: "confirmation_number" }),
     }
-    items.push(NavItem { href: "/wisata", label: "Wisata", icon: "beach_access" });
+    items.push(NavItem { href: "/sewa", label: "Sewa", icon: "airport_shuttle" });
     let akun = if user.is_some() { "/akun" } else { "/login" };
     items.push(NavItem { href: akun, label: "Akun", icon: "person" });
     items

@@ -68,6 +68,10 @@ docker run -d \
   -e RUSTFS_ACCESS_KEY='...' \
   -e RUSTFS_SECRET_KEY='...' \
   -e RUSTFS_PUBLIC_URL='https://image.ulalaapi.store/lajubus' \
+  `# ── Peta CARTO (opsional; kosong = Positron publik) ───────────────────` \
+  `# {apikey} di URL diganti CARTO_API_KEY; tanpa {apikey} → ?api_key=...` \
+  -e CARTO_TILE_URL='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' \
+  -e CARTO_API_KEY='' \
   `# ── Batas memori (VPS kecil) ───────────────────────────────────────────` \
   `# Tanpa batas, app yang membengkak menyeret seluruh mesin (insiden OOM` \
   `# 24 Agu 2026 membunuh Postgres). memory-swap = memory: sengaja tanpa swap` \

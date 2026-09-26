@@ -60,3 +60,55 @@ pub async fn get_seat_map(schedule_id: String) -> Result<Option<crate::web::mode
     let state = app_state().await?;
     state.schedule_svc.seat_map(&schedule_id).await.map_err(map_err)
 }
+
+// ── Peta & GPS driver ────────────────────────────────────────────────────────
+
+/// Jadwal hari ini yang punya lokasi (radar beranda & /peta). Publik; jarak
+/// ke penumpang dihitung di browser.
+#[server(ListNearbyBuses, "/api-fn")]
+pub async fn list_nearby_buses() -> Result<Vec<crate::web::models::NearbyBus>, ServerFnError> {
+    let state = app_state().await?;
+    state.schedule_svc.nearby_today().await.map_err(map_err)
+}
+
+/// Token tautan driver — hanya pemilik jadwal / admin.
+#[server(GetDriverToken, "/api-fn")]
+pub async fn get_driver_token(schedule_id: String) -> Result<String, ServerFnError> {
+    let claims = require_role(&["admin", "merchant"]).await?;
+    let state = app_state().await?;
+    state.schedule_svc.driver_token(&claims, &schedule_id).await.map_err(map_err)
+}
+
+/// Halaman driver: token = otorisasinya (tanpa login).
+#[server(GetDriverTrip, "/api-fn")]
+pub async fn get_driver_trip(token: String) -> Result<Option<crate::web::models::DriverTrip>, ServerFnError> {
+    let state = app_state().await?;
+    state.schedule_svc.driver_trip(&token).await.map_err(map_err)
+}
+
+/// Kiriman posisi dari HP driver (±10 dtk). Dibatasi 1 kiriman / 3 dtk per token.
+#[server(ReportPosition, "/api-fn")]
+pub async fn report_position(
+    token: String,
+    lat: f64,
+    lng: f64,
+    speed_kmh: Option<f64>,
+    heading: Option<f64>,
+    accuracy_m: Option<f64>,
+) -> Result<(), ServerFnError> {
+    let state = app_state().await?;
+    if !state.rate.allow(&format!("gps:{token}"), 1, 3) {
+        return Ok(()); // kiriman terlalu rapat: abaikan diam-diam, bukan galat
+    }
+    state
+        .schedule_svc
+        .report_position(&token, lat, lng, speed_kmh, heading, accuracy_m)
+        .await
+        .map_err(map_err)
+}
+
+#[server(StopTracking, "/api-fn")]
+pub async fn stop_tracking(token: String) -> Result<(), ServerFnError> {
+    let state = app_state().await?;
+    state.schedule_svc.stop_tracking(&token).await.map_err(map_err)
+}

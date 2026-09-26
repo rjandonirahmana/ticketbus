@@ -6,6 +6,8 @@ use crate::service::{
 
 pub struct AppState {
     pub pool: Pool,
+    /// Pembatas laju in-memory bersama (juga dipakai AuthService & RentalService).
+    pub rate: std::sync::Arc<crate::service::RateLimiter>,
     pub armada_svc: ArmadaService,
     pub schedule_svc: ScheduleService,
     pub photo_svc: PhotoService,

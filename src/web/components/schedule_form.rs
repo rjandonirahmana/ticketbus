@@ -3,7 +3,7 @@
 
 use leptos::prelude::*;
 
-use super::{clean_error, spawn_client, Icon};
+use super::{clean_error, spawn_client, Icon, PickupPicker};
 use crate::web::api::create_schedule;
 use crate::web::models::{Armada, NewSchedule};
 
@@ -56,6 +56,8 @@ pub fn ScheduleForm(armadas: Vec<Armada>, #[prop(into)] on_saved: Callback<()>) 
     let f_konfig = RwSignal::new("2-2".to_string());
     let f_dua_dek = RwSignal::new(false);
     let f_wanita = RwSignal::new(String::new());
+    let f_lat = RwSignal::new(String::new());
+    let f_lng = RwSignal::new(String::new());
     let form_error = RwSignal::new(String::new());
     let form_ok = RwSignal::new(String::new());
     let busy = RwSignal::new(false);
@@ -75,6 +77,8 @@ pub fn ScheduleForm(armadas: Vec<Armada>, #[prop(into)] on_saved: Callback<()>) 
             konfigurasi: f_konfig.get_untracked(),
             dua_dek: f_dua_dek.get_untracked(),
             kursi_wanita: f_wanita.get_untracked(),
+            jemput_lat: f_lat.get_untracked(),
+            jemput_lng: f_lng.get_untracked(),
         };
         if input.armada_id.is_empty() || input.tanggal.is_empty() {
             form_error.set("Armada dan tanggal wajib diisi".into());
@@ -169,6 +173,7 @@ pub fn ScheduleForm(armadas: Vec<Armada>, #[prop(into)] on_saved: Callback<()>) 
                         />
                     </Field>
                 </div>
+                <PickupPicker lat=f_lat lng=f_lng />
                 <div class="field-grid">
                     <Field label="Tarif per Kursi (Rp)" icon="payments">
                         <input

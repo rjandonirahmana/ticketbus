@@ -5567,6 +5567,730 @@ textarea:focus,
   background: var(--primary-container);
 }
 
+/* ── Peta (Leaflet) — radar beranda, /peta, pemilih titik jemput, driver ─ */
+.radar-map,
+.full-map,
+.pick-map,
+.driver-map {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  width: 100%;
+  border-radius: var(--r-md);
+  background: var(--surface-container);
+  overflow: hidden;
+}
+.radar-map {
+  height: 190px;
+  pointer-events: none;
+}
+.full-map {
+  height: 52vh;
+  min-height: 320px;
+  border-radius: var(--r-lg);
+}
+.pick-map {
+  height: 220px;
+}
+.driver-map {
+  height: 220px;
+}
+/* CARTO Positron diberi rona lavender → latar kebiruan & jalan putih seperti desain. */
+.lm-tiles {
+  filter: sepia(0.22) hue-rotate(192deg) saturate(1.7) brightness(0.99) contrast(1.03);
+}
+[data-theme="dark"] .lm-tiles {
+  filter: invert(0.9) hue-rotate(185deg) saturate(0.6) brightness(0.95);
+}
+.radar-map,
+.full-map,
+.pick-map,
+.driver-map {
+  background: #e8ebf8;
+}
+.leaflet-control-attribution {
+  font-size: 9px !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+}
+.leaflet-container {
+  font-family: var(--font-ui);
+}
+.lm-wrap {
+  background: none;
+  border: none;
+}
+.lm-pin {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+/* Penanda bus: lingkaran warna armada, cincin putih tebal, bayangan lembut. */
+.lm-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #9d4300;
+  color: #fff;
+  box-shadow: 0 0 0 3px #fff, 0 6px 14px rgba(0, 53, 95, 0.35);
+  transition: transform 0.15s ease;
+}
+.lm-dot .icon {
+  font-size: 19px;
+}
+.lm-stale .lm-dot {
+  filter: grayscale(0.8);
+  opacity: 0.75;
+}
+.lm-live .lm-dot {
+  animation: lm-pulse 1.8s ease-in-out infinite;
+}
+.lm-active .lm-dot {
+  transform: scale(1.18);
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px #f97316, 0 6px 14px rgba(0, 53, 95, 0.35);
+}
+/* Label pil putih di atas penanda: titik status · nama · badge oranye. */
+.lm-label {
+  order: -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fff;
+  color: #131b2e;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 3px 10px rgba(0, 53, 95, 0.18);
+}
+.lm-label i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #fd761a;
+}
+.lm-live .lm-label i {
+  background: #10b981;
+}
+.lm-label b {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: #fd761a;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+/* Titik jemput: pin navy kecil + teks kapital polos (nama terminal). */
+.lm-pickup {
+  transform: translate(-50%, -50%);
+}
+.lm-pickup .lm-dot {
+  width: 28px;
+  height: 28px;
+  background: #0f4c81;
+  box-shadow: 0 0 0 3px #fff, 0 4px 10px rgba(0, 53, 95, 0.3);
+}
+.lm-pickup .lm-dot .icon {
+  font-size: 16px;
+}
+.lm-text {
+  font-family: var(--font-num);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #2c3140;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
+}
+@keyframes lm-pulse {
+  50% {
+    box-shadow: 0 0 0 3px #fff, 0 0 0 11px rgba(249, 115, 22, 0.22), 0 6px 14px rgba(0, 53, 95, 0.35);
+  }
+}
+/* Pengguna: pin navy bercincin + halo, label kapital di bawah. */
+.lm-me {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.lm-me i {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #0f4c81;
+  color: #fff;
+  box-shadow: 0 0 0 3px #fff, 0 0 0 9px rgba(15, 76, 129, 0.18), 0 6px 14px rgba(0, 53, 95, 0.35);
+}
+.lm-me i .icon {
+  font-size: 19px;
+}
+
+/* Radar beranda */
+.radar-card {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.radar-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.radar-head > div {
+  flex: 1;
+  min-width: 0;
+}
+.radar-head h2 {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--primary);
+}
+[data-theme="dark"] .radar-head h2 {
+  color: var(--primary-fixed-dim);
+}
+.radar-head p {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.radar-icon {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--r-md);
+  display: grid;
+  place-items: center;
+  background: var(--surface-low);
+  color: var(--primary);
+}
+.radar-map-link {
+  display: block;
+}
+.radar-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--r-md);
+  background: var(--surface-low);
+}
+.radar-top .op-logo {
+  width: 38px;
+  height: 38px;
+  font-size: 14px;
+}
+.radar-top-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.radar-top-main strong {
+  font-size: 14px;
+}
+.radar-top-main small {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.radar-price {
+  font-family: var(--font-num);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--secondary);
+  white-space: nowrap;
+}
+
+/* Halaman /peta */
+.page-map {
+  padding-bottom: 8px;
+}
+.map-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.map-top .status-chip .icon {
+  font-size: 15px;
+}
+.status-dot.off {
+  background: var(--outline);
+}
+.map-frame {
+  position: relative;
+}
+.map-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: -28px -16px 0;
+  padding: 10px 16px 16px;
+  position: relative;
+  z-index: 2;
+  border-radius: 24px 24px 0 0;
+  background: var(--surface);
+  box-shadow: 0 -8px 24px rgba(15, 76, 129, 0.1);
+}
+.map-sheet .sheet-grip {
+  margin-top: 0;
+}
+.bus-row {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: box-shadow 0.15s ease;
+}
+.bus-row.active {
+  box-shadow: var(--shadow-lg), inset 0 0 0 2px var(--cta);
+}
+.bus-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  background: var(--surface-low);
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.bus-status span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.bus-status b {
+  text-align: right;
+  color: var(--secondary);
+  font-weight: 700;
+}
+.bus-status.live span {
+  color: var(--tertiary-container);
+  font-weight: 600;
+}
+.bus-status.stale span {
+  color: var(--warn);
+}
+.seat-left {
+  color: var(--on-surface-variant);
+}
+.seat-left.low {
+  color: var(--danger);
+}
+.bus-actions {
+  display: flex;
+  gap: 8px;
+}
+.radar-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--surface-container);
+  font-size: 12.5px;
+  color: var(--on-surface-variant);
+}
+.radar-foot > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.radius-chips {
+  display: flex;
+  gap: 6px;
+}
+
+/* Pemilih titik jemput (form jadwal) */
+.pick-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pick-coord {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-num);
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.pick-coord .icon {
+  font-size: 16px;
+  color: var(--cta);
+}
+
+/* Tautan GPS driver di kartu jadwal (dashboard) */
+.driver-link {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.driver-link > .btn {
+  align-self: flex-start;
+}
+.driver-link-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: var(--r-md);
+  background: var(--surface-low);
+}
+.driver-link-box input {
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: var(--surface-lowest);
+  color: var(--on-surface);
+  font-family: var(--font-num);
+  font-size: 12px;
+}
+.driver-link-box small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.driver-link-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Halaman driver */
+.driver-brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.gps-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--r-lg);
+  background: var(--surface-container);
+}
+.gps-card.on {
+  background: var(--ok-bg);
+  box-shadow: inset 0 0 0 2px var(--ok-border);
+}
+.gps-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.gps-head strong {
+  display: block;
+  font-size: 16px;
+}
+.gps-head small {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.gps-icon {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--primary);
+  color: #fff;
+}
+.gps-card.on .gps-icon {
+  background: var(--tertiary-container);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+.hero-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.hero-link .icon {
+  font-size: 16px;
+}
+
+/* ── /peta: detail sesuai desain Peta Bus ──────────────────────────────── */
+.map-top {
+  gap: 8px;
+}
+.map-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-lowest);
+  box-shadow: var(--shadow-sm);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--on-surface);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.map-status .icon {
+  font-size: 15px;
+  color: var(--primary);
+}
+.map-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 4px 14px;
+  border-radius: var(--r-md);
+  color: var(--primary);
+}
+.map-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--on-surface);
+  font-family: inherit;
+  font-size: 15px;
+  padding: 12px 0;
+}
+.tune-btn {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border: none;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  background: var(--surface-high);
+  color: var(--primary);
+  cursor: pointer;
+}
+.tune-btn.active {
+  background: var(--primary);
+  color: #fff;
+}
+.radius-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--surface-container);
+}
+.map-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--surface-lowest);
+  color: var(--on-surface);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+.map-chip .icon {
+  font-size: 17px;
+  color: var(--primary);
+}
+.map-chip.active {
+  background: var(--primary);
+  color: #fff;
+}
+.map-chip.active .icon {
+  color: #fff;
+}
+/* Peta selebar layar di mobile, sheet menimpa bagian bawahnya. */
+.map-frame {
+  margin: 0 -16px;
+}
+.map-frame .full-map {
+  border-radius: 0;
+  height: 56vh;
+}
+.map-ctrl {
+  position: absolute;
+  z-index: 5;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.map-ctrl.top {
+  top: 14px;
+}
+.map-ctrl.bottom {
+  bottom: 44px;
+}
+.map-ctrl button {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: var(--r-md);
+  display: grid;
+  place-items: center;
+  background: var(--surface-lowest);
+  color: var(--on-surface);
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+}
+.map-ctrl.top button:first-child .icon {
+  color: var(--secondary);
+}
+.map-ctrl button:active {
+  transform: scale(0.94);
+}
+.pill-quick {
+  background: var(--secondary-fixed);
+  color: var(--on-secondary-fixed-variant);
+}
+.shelter-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--surface-container);
+}
+.shelter-card > div {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.shelter-card strong {
+  font-size: 14px;
+  color: var(--primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-theme="dark"] .shelter-card strong {
+  color: var(--primary-fixed-dim);
+}
+.shelter-card small {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.shelter-icon {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  background: var(--primary);
+  color: #fff;
+}
+.cls-badge {
+  flex: none;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.cls-orange {
+  background: var(--secondary-fixed);
+  color: var(--on-secondary-fixed-variant);
+}
+.cls-blue {
+  background: var(--primary-fixed);
+  color: var(--primary);
+}
+.cls-violet {
+  background: var(--violet-bg);
+  color: var(--violet);
+}
+.bus-row .op-logo {
+  color: var(--primary);
+  background: var(--surface-high);
+}
+.bus-status b.urgent {
+  color: var(--danger);
+}
+.bus-status.live b {
+  color: var(--on-surface-variant);
+  font-weight: 600;
+}
+.btn-outline {
+  background: var(--surface-lowest);
+  color: var(--primary);
+  box-shadow: inset 0 0 0 1.5px var(--outline-variant);
+}
+[data-theme="dark"] .btn-outline {
+  color: var(--primary-fixed-dim);
+}
+.btn-brown {
+  background: var(--secondary);
+  color: #fff;
+  box-shadow: var(--shadow-card);
+}
+.btn-brown:hover {
+  background: #7a3400;
+}
+.btn-navy {
+  background: var(--primary);
+  color: #fff;
+}
+[data-theme="dark"] .btn-navy {
+  background: var(--primary-container);
+}
+.link-btn.accent {
+  margin-left: 0;
+  color: var(--secondary);
+}
+.lm-me-label {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f4c81;
+  font-family: var(--font-num);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
 /* ── Foto trip ─────────────────────────────────────────────────────────── */
 .photo-grid {
   display: grid;
@@ -5749,6 +6473,19 @@ textarea:focus,
   }
   .checkout-bar {
     bottom: 16px;
+  }
+  .map-sheet {
+    margin: -28px 0 0;
+    border-radius: 24px;
+  }
+  .map-frame {
+    margin: 0;
+  }
+  .map-frame .full-map {
+    border-radius: var(--r-lg);
+  }
+  .full-map {
+    height: 60vh;
   }
   .app-shell {
     padding-bottom: 24px;

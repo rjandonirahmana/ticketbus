@@ -164,6 +164,11 @@ pub fn SewaPage() -> impl IntoView {
                 <p>
                     "Armada mitra PO terverifikasi, sopir profesional berpengalaman, dan penawaran transparan untuk perjalanan kantor, sekolah, hingga keluarga besar."
                 </p>
+                <a href="/wisata" class="hero-link">
+                    <Icon name="beach_access" />
+                    "Cari paket wisata rombongan? Lihat Paket Wisata"
+                    <Icon name="arrow_forward" />
+                </a>
                 <div class="hero-trust">
                     <span>
                         <Icon name="verified" />

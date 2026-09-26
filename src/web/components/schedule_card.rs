@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-use super::{format_rupiah, format_tanggal, initials, Icon};
+use super::{format_rupiah, format_tanggal, initials, spawn_client, Icon};
 use crate::web::models::Schedule;
 
 /// Garis rute horizontal: jam + titik jemput → tujuan. `mid` tampil di atas
@@ -216,6 +216,7 @@ pub fn ScheduleCard(
                         }
                     })}
             </div>
+            {on_delete.is_some().then(|| view! { <DriverLinkPanel schedule_id=s.id.clone() driver_telp=s.driver_telp.clone() /> })}
             {on_delete
                 .map(|cb| {
                     view! {
@@ -228,5 +229,96 @@ pub fn ScheduleCard(
                     }
                 })}
         </article>
+    }
+}
+
+/// "08123…" / "+62 812…" → "62812…" untuk wa.me.
+fn wa_number(raw: &str) -> String {
+    let d: String = raw.chars().filter(|c| c.is_ascii_digit()).collect();
+    match d.strip_prefix('0') {
+        Some(rest) => format!("62{rest}"),
+        None => d,
+    }
+}
+
+/// Tautan GPS driver untuk satu jadwal (hanya dashboard mitra/admin — server
+/// fn `get_driver_token` menolak selain pemilik & admin).
+#[component]
+fn DriverLinkPanel(schedule_id: String, driver_telp: String) -> impl IntoView {
+    let url = RwSignal::new(None::<String>);
+    let error = RwSignal::new(String::new());
+    let id = StoredValue::new(schedule_id);
+    let telp = StoredValue::new(driver_telp);
+
+    let ambil = move |_| {
+        if url.get_untracked().is_some() {
+            url.set(None);
+            return;
+        }
+        spawn_client(async move {
+            match crate::web::api::get_driver_token(id.get_value()).await {
+                Ok(token) => {
+                    #[cfg(target_arch = "wasm32")]
+                    let origin = web_sys::window().and_then(|w| w.location().origin().ok()).unwrap_or_default();
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let origin = String::new();
+                    url.set(Some(format!("{origin}/driver/{token}")));
+                }
+                Err(e) => error.set(super::clean_error(&e.to_string())),
+            }
+        });
+    };
+
+    view! {
+        <div class="driver-link">
+            <button type="button" class="btn btn-soft btn-sm" on:click=ambil>
+                <Icon name="satellite_alt" />
+                {move || if url.get().is_some() { "Tutup Link GPS" } else { "Link GPS Driver" }}
+            </button>
+            {move || {
+                url.get()
+                    .map(|u| {
+                        let t = telp.get_value();
+                        let wa = (!t.trim().is_empty())
+                            .then(|| {
+                                super::wa_link(
+                                    &wa_number(&t),
+                                    &format!(
+                                        "Halo Pak Driver 👋 Mohon buka tautan ini di HP saat trip berjalan agar posisi bus tampil di peta LajuBus:\n{u}",
+                                    ),
+                                )
+                            });
+                        view! {
+                            <div class="driver-link-box">
+                                <input type="text" readonly=true prop:value=u.clone() on:focus=move |ev| {
+                                    #[cfg(target_arch = "wasm32")]
+                                    {
+                                        use wasm_bindgen::JsCast;
+                                        if let Some(el) = ev.target().and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok()) {
+                                            el.select();
+                                        }
+                                    }
+                                    #[cfg(not(target_arch = "wasm32"))]
+                                    let _ = ev;
+                                } />
+                                <div class="driver-link-actions">
+                                    {wa.map(|href| view! {
+                                        <a class="btn btn-wa btn-sm" href=href target="_blank" rel="noopener">
+                                            <Icon name="chat" />
+                                            "Kirim ke WA Driver"
+                                        </a>
+                                    })}
+                                    <a class="btn btn-soft btn-sm" href=u target="_blank" rel="noopener">
+                                        <Icon name="open_in_new" />
+                                        "Buka"
+                                    </a>
+                                </div>
+                                <small>"Siapa pun yang memegang tautan ini bisa mengirim posisi bus — bagikan hanya ke driver jadwal ini."</small>
+                            </div>
+                        }
+                    })
+            }}
+            {move || (!error.get().is_empty()).then(|| view! { <p class="alert alert-error">{error.get()}</p> })}
+        </div>
     }
 }
