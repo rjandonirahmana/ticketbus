@@ -29,12 +29,16 @@ pub fn LoginPage() -> impl IntoView {
         spawn_client(async move {
             match login_user(p, pw).await {
                 Ok(user) => {
-                    session.refetch();
                     let dest = match user.role.as_str() {
                         "merchant" => "/merchant",
                         "admin" => "/admin",
                         _ => "/",
                     };
+                    // Isi sesi langsung (bukan refetch): refetch baru selesai
+                    // setelah navigasi, sehingga guard /admin & /merchant
+                    // sempat membaca sesi lama (belum login) dan mengalihkan
+                    // balik ke /login.
+                    session.set(Some(Ok(Some(user))));
                     navigate(dest, Default::default());
                 }
                 Err(e) => error.set(clean_error(&e.to_string())),

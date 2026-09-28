@@ -7,7 +7,7 @@ use leptos::prelude::*;
 use crate::web::api::{list_schedules_month, list_schedules_upcoming};
 use crate::web::components::{
     format_rupiah, format_tanggal, format_tanggal_panjang, min_fare, tanggal_parts, today_wib, week_start,
-    FareCalendar, Icon, RadarCard, TripCard,
+    BannerCarousel, FareCalendar, Icon, RadarCard, TripCard,
 };
 use crate::web::models::Schedule;
 
@@ -94,9 +94,17 @@ pub fn BrowsePage() -> impl IntoView {
         let d = q_tanggal.get();
         all()
             .into_iter()
-            .filter(|s| asal.is_empty() || s.lokasi_jemput.to_lowercase().contains(&asal))
+            .filter(|s| asal.is_empty() || s.asal.to_lowercase().contains(&asal) || s.lokasi_jemput.to_lowercase().contains(&asal))
             .filter(|s| tujuan.is_empty() || s.tujuan.to_lowercase().contains(&tujuan))
             .filter(|s| d.as_ref().is_none_or(|d| &s.tanggal == d))
+            // Tanpa tanggal: satu kartu per trayek tetap (keberangkatan
+            // terdekatnya) — trayek membuka jadwal 30 hari ke depan. Daftar
+            // dari server sudah urut tanggal, jadi yang pertama = terdekat.
+            .filter({
+                let mut seen = std::collections::HashSet::new();
+                let per_trayek = d.is_none();
+                move |s| !per_trayek || s.route_id.as_ref().is_none_or(|r| seen.insert(r.clone()))
+            })
             .collect::<Vec<_>>()
     };
 
@@ -253,6 +261,8 @@ pub fn BrowsePage() -> impl IntoView {
 
             <RadarCard />
 
+            <BannerCarousel />
+
             <section id="kalender" class="section">
                 <Suspense fallback=|| view! { <div class="skeleton-card"></div> }>
                     {
@@ -371,18 +381,6 @@ pub fn BrowsePage() -> impl IntoView {
                 </Suspense>
             </section>
 
-            <a href="/wisata" class="promo-banner">
-                <div>
-                    <span class="pill pill-cta">"Spesial Rombongan"</span>
-                    <h3>"Sewa bus untuk rombongan?"</h3>
-                    <p>"Mitra PO LajuBus siap untuk study tour, ziarah, dan perjalanan keluarga."</p>
-                </div>
-                <span class="promo-code">
-                    <strong>"WISATA"</strong>
-                    <small>"Lihat paket"</small>
-                </span>
-            </a>
-
             <section id="jadwal" class="section">
                 <div class="section-head">
                     <div>
@@ -390,7 +388,7 @@ pub fn BrowsePage() -> impl IntoView {
                         <p>
                             {move || match q_tanggal.get() {
                                 Some(d) => format_tanggal(&d),
-                                None => "Semua keberangkatan mendatang".to_string(),
+                                None => "Keberangkatan terdekat tiap trayek — pilih tanggal untuk jadwal lain".to_string(),
                             }}
                         </p>
                     </div>

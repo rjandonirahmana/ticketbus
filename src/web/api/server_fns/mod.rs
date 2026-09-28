@@ -1,16 +1,20 @@
 pub mod armada;
 pub mod auth;
+pub mod banner;
 mod helpers;
 pub mod order;
 pub mod photo;
 pub mod rating;
 pub mod rental;
+pub mod route;
 pub mod schedule;
 
 pub use armada::*;
 pub use auth::*;
+pub use banner::*;
 pub use order::*;
 pub use photo::*;
 pub use rating::*;
 pub use rental::*;
+pub use route::*;
 pub use schedule::*;

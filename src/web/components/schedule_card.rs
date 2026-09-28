@@ -11,14 +11,25 @@ pub fn RouteTimeline(
     #[prop(into)] from: String,
     #[prop(into)] to: String,
     #[prop(into)] mid: String,
+    /// Jam tiba "HH:MM" (opsional) — menampilkan jam tiba, "+1" bila esok
+    /// hari, dan lama perjalanan.
+    #[prop(optional, into)]
+    tiba: String,
+    /// Kota asal (opsional) — tampil di bawah titik jemput.
+    #[prop(optional, into)]
+    asal: String,
 ) -> impl IntoView {
+    let durasi = crate::web::jam::durasi(&jam, &tiba);
     let jam = if jam.trim().is_empty() { "--:--".to_string() } else { jam };
+    let from_sub = if asal.is_empty() || from.is_empty() { "Titik Jemput".to_string() } else { asal.clone() };
+    let from = if from.is_empty() { asal } else { from };
+    let direct = durasi.map(|(m, _)| crate::web::jam::durasi_label(m)).unwrap_or_else(|| "Langsung".into());
     view! {
         <div class="timeline">
             <div class="tl-node">
                 <span class="tl-time">{jam}</span>
                 <span class="tl-place">{from}</span>
-                <span class="tl-sub">"Titik Jemput"</span>
+                <span class="tl-sub">{from_sub}</span>
             </div>
             <div class="tl-track">
                 <span class="tl-mid">{mid}</span>
@@ -29,9 +40,18 @@ pub fn RouteTimeline(
                     </span>
                     <i class="tl-dot tl-dot-end"></i>
                 </div>
-                <span class="tl-direct">"Langsung"</span>
+                <span class="tl-direct">{direct}</span>
             </div>
             <div class="tl-node tl-node-end">
+                {durasi
+                    .map(|(_, besok)| {
+                        view! {
+                            <span class="tl-time">
+                                {tiba.clone()}
+                                {besok.then(|| view! { <sup class="tl-plus">"+1"</sup> })}
+                            </span>
+                        }
+                    })}
                 <span class="tl-dest">{to}</span>
                 <span class="tl-sub">"Tujuan"</span>
             </div>
@@ -82,7 +102,14 @@ pub fn TripCard(schedule: Schedule, #[prop(default = true)] bookable: bool) -> i
                     {format!("{} Seat · {}", s.kapasitas, s.konfigurasi)}
                 </span>
             </header>
-            <RouteTimeline jam=s.jam.clone() from=s.lokasi_jemput.clone() to=s.tujuan.clone() mid="Via rute PO" />
+            <RouteTimeline
+                jam=s.jam.clone()
+                tiba=s.jam_tiba.clone()
+                asal=s.asal.clone()
+                from=s.lokasi_jemput.clone()
+                to=s.tujuan.clone()
+                mid="Via rute PO"
+            />
             <div class="facility-row">
                 <span class="facility">
                     <Icon name="confirmation_number" />
@@ -164,7 +191,9 @@ pub fn ScheduleCard(
 ) -> impl IntoView {
     let s = schedule;
     let pct = if s.kapasitas > 0 { (s.kursi_terjual * 100 / s.kapasitas).clamp(0, 100) } else { 0 };
-    let status = if s.sisa_kursi() <= 0 {
+    let status = if s.batal {
+        ("Dibatalkan", "pill pill-danger")
+    } else if s.sisa_kursi() <= 0 {
         ("Penuh", "pill pill-danger")
     } else if pct >= 75 {
         ("Hampir Penuh", "pill pill-warn")
@@ -186,11 +215,21 @@ pub fn ScheduleCard(
                         <span class="swatch" style=format!("background:{}", s.armada_color_hex)></span>
                         {s.armada_name.clone()}
                     </h3>
-                    <p>{format_tanggal(&s.tanggal)}</p>
+                    <p>
+                        {format_tanggal(&s.tanggal)}
+                        {s.route_id.is_some().then(|| " · Trayek tetap")}
+                    </p>
                 </div>
                 <span class=status.1>{status.0}</span>
             </header>
-            <RouteTimeline jam=s.jam.clone() from=s.lokasi_jemput.clone() to=s.tujuan.clone() mid="Rp ".to_string() + &format_rupiah(s.harga) />
+            <RouteTimeline
+                jam=s.jam.clone()
+                tiba=s.jam_tiba.clone()
+                asal=s.asal.clone()
+                from=s.lokasi_jemput.clone()
+                to=s.tujuan.clone()
+                mid="Rp ".to_string() + &format_rupiah(s.harga)
+            />
             <div class="ops-meta">
                 <div class="occupancy">
                     <span>
@@ -217,7 +256,10 @@ pub fn ScheduleCard(
                     })}
             </div>
             {on_delete.is_some().then(|| view! { <DriverLinkPanel schedule_id=s.id.clone() driver_telp=s.driver_telp.clone() /> })}
+            // Jadwal trayek tetap tidak dihapus di sini (generator akan membuatnya
+            // lagi) — dibatalkan per hari lewat "Bus & Driver Harian".
             {on_delete
+                .filter(|_| s.route_id.is_none())
                 .map(|cb| {
                     view! {
                         <div class="ops-actions">

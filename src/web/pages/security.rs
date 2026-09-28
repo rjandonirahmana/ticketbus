@@ -102,7 +102,7 @@ pub fn SecurityPage() -> impl IntoView {
         spawn_client(async move {
             match freeze_account().await {
                 Ok(()) => {
-                    session.refetch();
+                    session.set(Some(Ok(None)));
                     navigate("/login", Default::default());
                 }
                 Err(e) => error.set(clean_error(&e.to_string())),

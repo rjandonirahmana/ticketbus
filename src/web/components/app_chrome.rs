@@ -18,7 +18,7 @@ struct NavItem {
 fn nav_items(user: Option<&PublicUser>) -> Vec<NavItem> {
     let mut items = vec![
         NavItem { href: "/", label: "Beranda", icon: "directions_bus" },
-        NavItem { href: "/peta", label: "Peta Bus", icon: "near_me" },
+        NavItem { href: "/wisata", label: "Wisata", icon: "beach_access" },
     ];
     match user.map(|u| u.role.as_str()) {
         Some("merchant") => items.push(NavItem { href: "/merchant", label: "Mitra", icon: "storefront" }),

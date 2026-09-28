@@ -19,12 +19,12 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 use bis::config::{config::AppConfig, database::create_pool, migrate};
 use bis::repository::{
-    ArmadaRepository, OrderRepository, OtpRepository, PhoneChangeRepository, RatingRepository, RentalRepository, ScheduleRepository, TripPhotoRepository,
+    ArmadaRepository, BannerRepository, OrderRepository, OtpRepository, PhoneChangeRepository, RatingRepository, RentalRepository, RouteRepository, ScheduleRepository, TripPhotoRepository,
     UserRepository,
 };
 use bis::service::{
-    auth::ensure_admin_seed, ArmadaService, AuthService, OrderService, PhotoService, RateLimiter, RatingService, RentalService,
-    ScheduleService, StorageService, WahaClient,
+    auth::ensure_admin_seed, ArmadaService, AuthService, BannerService, OrderService, PhotoService, RateLimiter, RatingService, RentalService,
+    RouteService, ScheduleService, StorageService, WahaClient,
 };
 use bis::state::AppState;
 use bis::web::api::upload::{listing_photo_upload, trip_photo_upload};
@@ -84,7 +84,8 @@ async fn main() -> Result<()> {
         pool: pool.clone(),
         rate: rate_limiter.clone(),
         armada_svc: ArmadaService::new(armada_repo.clone()),
-        schedule_svc: ScheduleService::new(ScheduleRepository::new(pool.clone()), armada_repo),
+        schedule_svc: ScheduleService::new(ScheduleRepository::new(pool.clone()), armada_repo.clone()),
+        route_svc: RouteService::new(RouteRepository::new(pool.clone()), armada_repo),
         photo_svc: PhotoService::new(TripPhotoRepository::new(pool.clone())),
         order_svc: OrderService::new(OrderRepository::new(pool.clone())),
         rating_svc: RatingService::new(RatingRepository::new(pool.clone()), OrderRepository::new(pool.clone())),
@@ -94,6 +95,7 @@ async fn main() -> Result<()> {
             rate_limiter.clone(),
             bis::utils::phone::normalize(&cfg.admin_phone).unwrap_or_default(),
         ),
+        banner_svc: BannerService::new(BannerRepository::new(pool.clone())),
         auth_svc: AuthService::new(
             user_repo,
             OtpRepository::new(pool.clone()),
@@ -105,6 +107,9 @@ async fn main() -> Result<()> {
         ),
         storage,
     });
+
+    // Trayek tetap → jadwal harian 30 hari ke depan (sekarang, lalu tiap jam).
+    state.route_svc.spawn_generator();
 
     // Sesudah migrasi 005: cookie sesi yang sudah dicabut pemiliknya
     // ("keluarkan dari semua perangkat lain") harus ditolak sejak request pertama.

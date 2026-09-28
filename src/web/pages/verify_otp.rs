@@ -34,8 +34,9 @@ pub fn VerifyOtpPage() -> impl IntoView {
         spawn_client(async move {
             match register_verify(p, code).await {
                 Ok(user) => {
-                    session.refetch();
                     let dest = if user.role == "merchant" { "/merchant" } else { "/" };
+                    // Sama dengan login: set sesi sebelum navigasi agar guard tak membaca sesi lama.
+                    session.set(Some(Ok(Some(user))));
                     navigate(dest, Default::default());
                 }
                 Err(e) => error.set(clean_error(&e.to_string())),

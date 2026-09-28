@@ -71,6 +71,7 @@ pub fn BusMapPage() -> impl IntoView {
                     || s.armada_name.to_lowercase().contains(&needle)
                     || s.tujuan.to_lowercase().contains(&needle)
                     || s.lokasi_jemput.to_lowercase().contains(&needle)
+                    || s.asal.to_lowercase().contains(&needle)
             })
             .collect::<Vec<_>>()
     };
@@ -382,7 +383,14 @@ fn BusRow(r: RadarRow, active: bool, #[prop(into)] on_track: Callback<()>) -> im
                 </span>
                 <b class=kanan_cls>{kanan}</b>
             </div>
-            <RouteTimeline jam=s.jam.clone() from=s.lokasi_jemput.clone() to=s.tujuan.clone() mid="Langsung" />
+            <RouteTimeline
+                jam=s.jam.clone()
+                tiba=s.jam_tiba.clone()
+                asal=s.asal.clone()
+                from=s.lokasi_jemput.clone()
+                to=s.tujuan.clone()
+                mid="Langsung"
+            />
             <footer class="trip-foot">
                 <div>
                     <span class=if sisa <= 5 { "label-caps seat-left low" } else { "label-caps seat-left" }>

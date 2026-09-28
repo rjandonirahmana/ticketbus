@@ -140,7 +140,14 @@ pub fn DriverPage() -> impl IntoView {
                                             <p>{format!("{} · {} kursi", format_tanggal(&s.tanggal), s.kapasitas)}</p>
                                         </div>
                                     </header>
-                                    <RouteTimeline jam=s.jam.clone() from=s.lokasi_jemput.clone() to=s.tujuan.clone() mid="Trip hari ini" />
+                                    <RouteTimeline
+                                        jam=s.jam.clone()
+                                        tiba=s.jam_tiba.clone()
+                                        asal=s.asal.clone()
+                                        from=s.lokasi_jemput.clone()
+                                        to=s.tujuan.clone()
+                                        mid="Trip hari ini"
+                                    />
                                 </section>
                             }
                                 .into_any()

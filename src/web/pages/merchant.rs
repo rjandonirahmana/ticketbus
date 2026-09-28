@@ -8,8 +8,8 @@ use crate::web::api::{
 };
 use crate::web::app::SessionResource;
 use crate::web::components::{
-    clean_error, format_rupiah, spawn_client, ArmadaManager, Icon, PhotoGallery, PhotoUpload, RentalManager,
-    ScheduleCard, ScheduleForm,
+    clean_error, format_rupiah, spawn_client, today_wib, ArmadaManager, Icon, PhotoGallery, PhotoUpload, RentalManager,
+    RouteManager, ScheduleCard, ScheduleForm,
 };
 
 #[derive(Clone, Copy, PartialEq)]
@@ -26,6 +26,7 @@ pub fn MerchantPage() -> impl IntoView {
     let merchant_name = move || session.get().and_then(|r| r.ok()).flatten().map(|u| u.name).unwrap_or_default();
 
     let active_tab = RwSignal::new(Tab::Jadwal);
+    let show_oneoff = RwSignal::new(false);
 
     let armadas = Resource::new(|| (), |_| list_my_armadas());
     let schedules = Resource::new(|| (), |_| list_my_schedules());
@@ -197,15 +198,20 @@ pub fn MerchantPage() -> impl IntoView {
                 {move || match active_tab.get() {
                     Tab::Jadwal => {
                         let arm = armadas.get().and_then(|r| r.ok()).unwrap_or_default();
-                        let sch = schedules.get().and_then(|r| r.ok()).unwrap_or_default();
+                        // Keberangkatan mendatang saja, terdekat dulu — trayek tetap
+                        // membuat jadwal 30 hari ke depan, jadi daftar penuh terlalu panjang.
+                        let today = today_wib().format("%Y-%m-%d").to_string();
+                        let mut sch: Vec<_> = schedules
+                            .get()
+                            .and_then(|r| r.ok())
+                            .unwrap_or_default()
+                            .into_iter()
+                            .filter(|s| s.tanggal >= today && !s.batal)
+                            .collect();
+                        sch.sort_by(|a, b| (&a.tanggal, &a.jam).cmp(&(&b.tanggal, &b.jam)));
                         let count = sch.len();
+                        sch.truncate(20);
                         view! {
-                            <div class="section-head">
-                                <div>
-                                    <h2>"Terbitkan Jadwal Baru"</h2>
-                                    <p>"Jadwal langsung tampil di beranda penumpang"</p>
-                                </div>
-                            </div>
                             {if arm.is_empty() {
                                 view! {
                                     <p class="alert alert-warn">
@@ -215,12 +221,31 @@ pub fn MerchantPage() -> impl IntoView {
                                 }
                                     .into_any()
                             } else {
-                                view! { <ScheduleForm armadas=arm on_saved=move |_| schedules.refetch() /> }.into_any()
+                                let arm2 = arm.clone();
+                                view! {
+                                    <RouteManager armadas=arm />
+                                    <button type="button" class="action-bar" on:click=move |_| show_oneoff.update(|v| *v = !*v)>
+                                        <span class="action-icon">
+                                            <Icon name="event" />
+                                        </span>
+                                        <span class="action-text">
+                                            <strong>"Jadwal Tambahan (Sekali Jalan)"</strong>
+                                            <small>"Mis. bus tambahan saat Lebaran — di luar trayek tetap"</small>
+                                        </span>
+                                        {move || view! { <Icon name=if show_oneoff.get() { "expand_less" } else { "expand_more" } /> }}
+                                    </button>
+                                    {move || {
+                                        show_oneoff
+                                            .get()
+                                            .then(|| view! { <ScheduleForm armadas=arm2.clone() on_saved=move |_| schedules.refetch() /> })
+                                    }}
+                                }
+                                    .into_any()
                             }}
 
                             <div class="section-head">
-                                <h2>"Keberangkatan Bus"</h2>
-                                <span class="pill pill-primary">{format!("Semua ({count})")}</span>
+                                <h2>"Keberangkatan Mendatang"</h2>
+                                <span class="pill pill-primary">{format!("{count} jadwal")}</span>
                             </div>
                             {if sch.is_empty() {
                                 view! {

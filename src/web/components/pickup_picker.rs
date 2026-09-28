@@ -9,7 +9,14 @@ use crate::web::geo::DEFAULT_CENTER;
 const MAP_ID: &str = "pickup-map";
 
 #[component]
-pub fn PickupPicker(lat: RwSignal<String>, lng: RwSignal<String>) -> impl IntoView {
+pub fn PickupPicker(
+    lat: RwSignal<String>,
+    lng: RwSignal<String>,
+    /// Id elemen peta — beda-bedakan bila dua form berpeta bisa terbuka bersamaan.
+    #[prop(optional)]
+    map_id: Option<&'static str>,
+) -> impl IntoView {
+    let map_id = map_id.unwrap_or(MAP_ID);
     let info = RwSignal::new(String::new());
     let current = move || {
         let (a, b) = (lat.get_untracked(), lng.get_untracked());
@@ -19,8 +26,8 @@ pub fn PickupPicker(lat: RwSignal<String>, lng: RwSignal<String>) -> impl IntoVi
     // Pasang peta setelah elemen ada di DOM (hanya di browser).
     Effect::new(move |_| {
         let (c_lat, c_lng) = current().unwrap_or(DEFAULT_CENTER);
-        if map_init(MAP_ID, c_lat, c_lng, if current().is_some() { 15.0 } else { 11.0 }, true) {
-            map_pick(MAP_ID, current(), move |a, b| {
+        if map_init(map_id, c_lat, c_lng, if current().is_some() { 15.0 } else { 11.0 }, true) {
+            map_pick(map_id, current(), move |a, b| {
                 lat.set(format!("{a:.6}"));
                 lng.set(format!("{b:.6}"));
             });
@@ -37,12 +44,12 @@ pub fn PickupPicker(lat: RwSignal<String>, lng: RwSignal<String>) -> impl IntoVi
                 lat.set(format!("{a:.6}"));
                 lng.set(format!("{b:.6}"));
                 info.set(format!("Lokasi perangkat dipakai (akurasi ±{} m). Klik peta untuk menggeser.", acc.round()));
-                map_init(MAP_ID, a, b, 16.0, true);
-                map_pick(MAP_ID, Some((a, b)), move |x, y| {
+                map_init(map_id, a, b, 16.0, true);
+                map_pick(map_id, Some((a, b)), move |x, y| {
                     lat.set(format!("{x:.6}"));
                     lng.set(format!("{y:.6}"));
                 });
-                map_focus(MAP_ID, a, b, 16.0);
+                map_focus(map_id, a, b, 16.0);
                 geo_clear(wid.get_untracked());
             },
             move |e| info.set(e),
@@ -54,7 +61,7 @@ pub fn PickupPicker(lat: RwSignal<String>, lng: RwSignal<String>) -> impl IntoVi
     view! {
         <div class="field">
             <span class="field-label">"Titik Jemput di Peta (untuk Radar Bus)"</span>
-            <div id=MAP_ID class="pick-map"></div>
+            <div id=map_id class="pick-map"></div>
             <div class="pick-bar">
                 <span class="pick-coord">
                     <Icon name="pin_drop" />

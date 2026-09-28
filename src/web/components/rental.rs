@@ -358,7 +358,13 @@ pub fn RentalRequestSheet(
 
 /// Field unggah foto sampul (POST /upload/listing-photo → URL ke `url`).
 #[component]
-pub fn ImageUploadField(url: RwSignal<String>) -> impl IntoView {
+pub fn ImageUploadField(
+    url: RwSignal<String>,
+    #[prop(optional, into)] label: Option<String>,
+    #[prop(optional, into)] hint: Option<String>,
+) -> impl IntoView {
+    let label = label.unwrap_or_else(|| "Foto Sampul".into());
+    let hint = hint.unwrap_or_else(|| "JPG/PNG — tampil di kartu katalog".into());
     let input_ref = NodeRef::<html::Input>::new();
     let busy = RwSignal::new(false);
     let error = RwSignal::new(String::new());
@@ -397,7 +403,7 @@ pub fn ImageUploadField(url: RwSignal<String>) -> impl IntoView {
 
     view! {
         <div class="field">
-            <span class="field-label">"Foto Sampul"</span>
+            <span class="field-label">{label}</span>
             <label class="dropzone">
                 <input type="file" accept="image/*" node_ref=input_ref on:change=on_change />
                 {move || {
@@ -406,7 +412,7 @@ pub fn ImageUploadField(url: RwSignal<String>) -> impl IntoView {
                         view! {
                             <Icon name="add_photo_alternate" />
                             <strong>{move || if busy.get() { "Mengunggah…" } else { "Pilih foto sampul" }}</strong>
-                            <small>"JPG/PNG — tampil di kartu katalog"</small>
+                            <small>{hint.clone()}</small>
                         }
                             .into_any()
                     } else {

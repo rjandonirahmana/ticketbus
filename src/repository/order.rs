@@ -43,7 +43,7 @@ impl OrderRepository {
 
             let row = tx
                 .query_opt(
-                    "SELECT harga, kapasitas, kursi_terjual, konfigurasi, dua_dek, tanggal
+                    "SELECT harga, kapasitas, kursi_terjual, konfigurasi, dua_dek, tanggal, batal
                        FROM schedules WHERE id = $1 FOR UPDATE",
                     &[&schedule_uuid],
                 )
@@ -57,6 +57,9 @@ impl OrderRepository {
             let konfigurasi: String = row.get("konfigurasi");
             let dua_dek: bool = row.get("dua_dek");
             let tanggal: NaiveDate = row.get("tanggal");
+            if row.get::<_, bool>("batal") {
+                anyhow::bail!("Keberangkatan ini dibatalkan operator");
+            }
             if tanggal < (Utc::now() + chrono::Duration::hours(7)).date_naive() {
                 anyhow::bail!("Jadwal ini sudah lewat");
             }

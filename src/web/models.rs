@@ -46,6 +46,14 @@ pub struct Schedule {
     /// Koordinat titik jemput (opsional, dipilih mitra di peta).
     pub jemput_lat: Option<f64>,
     pub jemput_lng: Option<f64>,
+    /// Trayek tetap asal jadwal ini (`None` = jadwal sekali jalan).
+    pub route_id: Option<String>,
+    /// Kota asal (kosong untuk jadwal lama/sekali jalan).
+    pub asal: String,
+    /// Jam tiba "HH:MM"; <= `jam` berarti tiba esok hari. Kosong = tak diisi.
+    pub jam_tiba: String,
+    /// Keberangkatan hari itu dibatalkan (tak tampil ke penumpang).
+    pub batal: bool,
 }
 
 impl Schedule {
@@ -362,4 +370,132 @@ pub struct NewRentalRequest {
     pub tipe_perjalanan: String,
     pub jumlah_orang: i32,
     pub catatan: String,
+}
+
+// ── Banner promo beranda ─────────────────────────────────────────────────────
+
+/// Banner "Promo & Info Spesial" di beranda (dikelola admin). Tanggal dalam
+/// format `YYYY-MM-DD`, kosong = tanpa batas.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Banner {
+    pub id: String,
+    pub judul: String,
+    pub subjudul: String,
+    pub label: String,
+    pub kode_promo: String,
+    pub cta_label: String,
+    /// Path internal ("/wisata") atau URL http(s); kosong = tidak bisa diklik.
+    pub link_url: String,
+    pub gambar_url: String,
+    /// `sapphire` | `malam` | `emerald` | `tangerine` — gradasi bila tanpa gambar.
+    pub tema: String,
+    pub mulai: String,
+    pub selesai: String,
+    pub urutan: i32,
+    pub aktif: bool,
+}
+
+/// Status tayang banner relatif terhadap tanggal hari ini (WIB).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum BannerStatus {
+    Tayang,
+    Terjadwal,
+    Berakhir,
+    Draf,
+}
+
+impl Banner {
+    /// `today` = "YYYY-MM-DD"; format ISO membuat perbandingan string = tanggal.
+    pub fn status(&self, today: &str) -> BannerStatus {
+        if !self.aktif {
+            BannerStatus::Draf
+        } else if !self.mulai.is_empty() && self.mulai.as_str() > today {
+            BannerStatus::Terjadwal
+        } else if !self.selesai.is_empty() && self.selesai.as_str() < today {
+            BannerStatus::Berakhir
+        } else {
+            BannerStatus::Tayang
+        }
+    }
+}
+
+/// Input form banner (tambah & ubah).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct NewBanner {
+    pub judul: String,
+    pub subjudul: String,
+    pub label: String,
+    pub kode_promo: String,
+    pub cta_label: String,
+    pub link_url: String,
+    pub gambar_url: String,
+    pub tema: String,
+    pub mulai: String,
+    pub selesai: String,
+    pub urutan: i32,
+}
+
+// ── Trayek tetap ─────────────────────────────────────────────────────────────
+
+/// Trayek (rute) tetap yang berulang — sumber jadwal harian otomatis.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Route {
+    pub id: String,
+    pub merchant_id: Option<String>,
+    /// Trayek arah sebaliknya (rute balik), bila ada.
+    pub pasangan_id: Option<String>,
+    pub asal: String,
+    pub tujuan: String,
+    pub lokasi_jemput: String,
+    pub jemput_lat: Option<f64>,
+    pub jemput_lng: Option<f64>,
+    /// "HH:MM" WIB.
+    pub jam_berangkat: String,
+    /// "HH:MM"; <= jam berangkat berarti tiba esok hari.
+    pub jam_tiba: String,
+    pub harga: i64,
+    pub kapasitas: i32,
+    pub konfigurasi: String,
+    pub dua_dek: bool,
+    pub kursi_wanita: Vec<String>,
+    pub catatan: String,
+    /// Bus default (None bila busnya sudah dihapus — jadwal baru tak dibuat).
+    pub armada_id: Option<String>,
+    pub armada_name: String,
+    pub driver_nama: String,
+    pub driver_telp: String,
+    /// Bit 0 = Senin … bit 6 = Minggu.
+    pub hari_operasi: i16,
+    pub aktif: bool,
+}
+
+/// Input form trayek. `balik_*` hanya dipakai saat membuat trayek baru
+/// dengan "buat juga rute balik" (`balik = true`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct NewRoute {
+    pub asal: String,
+    pub tujuan: String,
+    pub lokasi_jemput: String,
+    pub jemput_lat: String,
+    pub jemput_lng: String,
+    pub jam_berangkat: String,
+    pub jam_tiba: String,
+    pub harga: i64,
+    pub kapasitas: i32,
+    pub konfigurasi: String,
+    pub dua_dek: bool,
+    /// Kode kursi wanita dipisah koma.
+    pub kursi_wanita: String,
+    pub catatan: String,
+    pub armada_id: String,
+    pub driver_nama: String,
+    pub driver_telp: String,
+    pub hari_operasi: i16,
+    pub balik: bool,
+    pub balik_lokasi_jemput: String,
+    pub balik_jam_berangkat: String,
+    pub balik_jam_tiba: String,
+    pub balik_armada_id: String,
+    pub balik_driver_nama: String,
+    pub balik_driver_telp: String,
 }

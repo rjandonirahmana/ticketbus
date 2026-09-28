@@ -188,7 +188,7 @@ pub fn RadarCard() -> impl IntoView {
                     </Suspense>
                 </div>
                 <a href="/peta" class="chip-btn">
-                    "Peta Penuh"
+                    "Peta Bus"
                     <Icon name="arrow_forward" />
                 </a>
             </div>
@@ -265,6 +265,10 @@ mod tests {
             kursi_wanita: vec![],
             jemput_lat: lat,
             jemput_lng: lng,
+            route_id: None,
+            asal: String::new(),
+            jam_tiba: String::new(),
+            batal: false,
         }
     }
 

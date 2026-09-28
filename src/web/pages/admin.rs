@@ -11,8 +11,8 @@ use crate::web::api::{
 };
 use crate::web::app::SessionResource;
 use crate::web::components::{
-    clean_error, format_rupiah, month_label, shift_month, spawn_client, ArmadaManager, CalendarGrid, Icon, PhotoGallery, PhotoUpload,
-    RentalManager, ScheduleCard, ScheduleForm, ScheduleModal,
+    clean_error, format_rupiah, month_label, shift_month, spawn_client, ArmadaManager, BannerManager, CalendarGrid, Icon, PhotoGallery, PhotoUpload,
+    RentalManager, RouteManager, ScheduleCard, ScheduleForm, ScheduleModal,
 };
 
 #[derive(Clone, Copy, PartialEq)]
@@ -22,6 +22,7 @@ enum Tab {
     Detail,
     Foto,
     Sewa,
+    Banner,
 }
 
 #[component]
@@ -30,6 +31,7 @@ pub fn AdminPage() -> impl IntoView {
     let admin_name = move || session.get().and_then(|r| r.ok()).flatten().map(|u| u.name).unwrap_or_default();
 
     let active_tab = RwSignal::new(Tab::Jadwal);
+    let show_oneoff = RwSignal::new(false);
 
     let now = Utc::now();
     let year = RwSignal::new(now.year());
@@ -209,10 +211,11 @@ pub fn AdminPage() -> impl IntoView {
 
                 <div class="chip-row tab-row">
                     {tab_pill(Tab::Jadwal, "calendar_month", "Kalender")}
-                    {tab_pill(Tab::Tambah, "add_circle", "Terbitkan & Armada")}
+                    {tab_pill(Tab::Tambah, "add_circle", "Trayek & Armada")}
                     {tab_pill(Tab::Detail, "list_alt", "Detail Order")}
                     {tab_pill(Tab::Foto, "photo_library", "Foto Trip")}
                     {tab_pill(Tab::Sewa, "beach_access", "Sewa & Wisata")}
+                    {tab_pill(Tab::Banner, "ad_units", "Banner")}
                 </div>
 
                 {move || match active_tab.get() {
@@ -324,20 +327,35 @@ pub fn AdminPage() -> impl IntoView {
                                     </div>
                                 </div>
                             </section>
-                            <div class="section-head">
-                                <div>
-                                    <h2>"Penerbitan Jadwal Instan"</h2>
-                                    <p>"Isi 3 langkah lalu terbitkan"</p>
-                                </div>
-                                <span class="pill pill-primary">"ADMIN MODE"</span>
-                            </div>
-                            <ScheduleForm
-                                armadas=arm.clone()
-                                on_saved=move |_| {
-                                    schedules_month.refetch();
-                                    schedules_detail.refetch();
+                            <RouteManager armadas=arm.clone() />
+                            <button type="button" class="action-bar" on:click=move |_| show_oneoff.update(|v| *v = !*v)>
+                                <span class="action-icon">
+                                    <Icon name="event" />
+                                </span>
+                                <span class="action-text">
+                                    <strong>"Jadwal Tambahan (Sekali Jalan)"</strong>
+                                    <small>"Di luar trayek tetap — langsung terbit tanpa verifikasi"</small>
+                                </span>
+                                {move || view! { <Icon name=if show_oneoff.get() { "expand_less" } else { "expand_more" } /> }}
+                            </button>
+                            {
+                                let arm = arm.clone();
+                                move || {
+                                    show_oneoff
+                                        .get()
+                                        .then(|| {
+                                            view! {
+                                                <ScheduleForm
+                                                    armadas=arm.clone()
+                                                    on_saved=move |_| {
+                                                        schedules_month.refetch();
+                                                        schedules_detail.refetch();
+                                                    }
+                                                />
+                                            }
+                                        })
                                 }
-                            />
+                            }
 
                             <section class="card form-card">
                                 <div class="step-head">
@@ -414,6 +432,8 @@ pub fn AdminPage() -> impl IntoView {
                     }
 
                     Tab::Sewa => view! { <RentalManager /> }.into_any(),
+
+                    Tab::Banner => view! { <BannerManager /> }.into_any(),
 
                     Tab::Foto => {
                         let arm = armadas.get().and_then(|r| r.ok()).unwrap_or_default();

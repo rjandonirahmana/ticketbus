@@ -39,17 +39,33 @@ pub fn shell(options: leptos::config::LeptosOptions) -> impl IntoView {
                     rel="stylesheet"
                 />
 
-                // Peta: Leaflet (OpenStreetMap) + jembatan lajumap.js. `defer` dan
-                // diletakkan SEBELUM HydrationScripts supaya `window.LajuMap`
-                // sudah ada saat WASM berjalan (skrip modul dieksekusi urut
-                // bersama skrip defer).
+                // Peta: Leaflet + MapLibre GL (peta vektor OpenFreeMap, gratis
+                // tanpa kunci) lewat plugin maplibre-gl-leaflet, lalu jembatan
+                // lajumap.js. `defer` dan diletakkan SEBELUM HydrationScripts
+                // supaya `window.LajuMap` sudah ada saat WASM berjalan (skrip
+                // modul dieksekusi urut bersama skrip defer).
                 <link
                     rel="stylesheet"
                     href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
                     crossorigin=""
                 />
+                <link
+                    rel="stylesheet"
+                    href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.6.0/maplibre-gl.css"
+                    crossorigin=""
+                />
                 <script
                     src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+                    crossorigin=""
+                    defer=true
+                ></script>
+                <script
+                    src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.6.0/maplibre-gl.min.js"
+                    crossorigin=""
+                    defer=true
+                ></script>
+                <script
+                    src="https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.min.js"
                     crossorigin=""
                     defer=true
                 ></script>
@@ -76,7 +92,8 @@ pub fn shell(options: leptos::config::LeptosOptions) -> impl IntoView {
 /// - `CARTO_API_KEY`: bila URL tak memuat `{apikey}`, ditambahkan sebagai
 ///   query `api_key=`.
 ///
-/// Keduanya kosong → tak menyuntik apa pun (peta memakai Positron publik).
+/// Keduanya kosong → tak menyuntik apa pun (peta memakai OpenFreeMap gratis,
+/// lihat `baseLayer()` di public/lajumap.js).
 /// CATATAN: tile diambil oleh BROWSER, jadi kunci ini ikut terlihat di tab
 /// Network — pakai kunci yang dibatasi domain (mis. hanya lajubus.online).
 fn map_tiles_script() -> Option<impl IntoView> {

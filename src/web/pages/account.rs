@@ -134,7 +134,7 @@ pub fn AccountPage() -> impl IntoView {
         let navigate = navigate.clone();
         spawn_client(async move {
             let _ = logout_user().await;
-            session.refetch();
+            session.set(Some(Ok(None)));
             navigate("/", Default::default());
         });
     };

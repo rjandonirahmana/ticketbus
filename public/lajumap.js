@@ -9,6 +9,49 @@
   "use strict";
   var maps = {};
 
+  var OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+  function hasWebGL() {
+    try {
+      var c = document.createElement("canvas");
+      return !!(c.getContext("webgl2") || c.getContext("webgl"));
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Peta dasar, urut prioritas:
+  // 1. window.LAJU_TILES.url (env CARTO_TILE_URL, disuntik app/shell.rs) —
+  //    tile raster sendiri bila suatu saat pakai penyedia berbayar;
+  // 2. OpenFreeMap "positron" (vektor, gratis tanpa kunci & tanpa batas,
+  //    boleh komersial) lewat MapLibre GL;
+  // 3. tile raster OpenStreetMap standar bila MapLibre/WebGL tak tersedia.
+  // Kelas .lm-tiles memberi rona lavender (dan versi gelap) lewat CSS.
+  function baseLayer() {
+    if (window.LAJU_TILES && window.LAJU_TILES.url) {
+      return L.tileLayer(window.LAJU_TILES.url, {
+        maxZoom: 19,
+        subdomains: "abcd",
+        className: "lm-tiles",
+        attribution: OSM_ATTR,
+      });
+    }
+    if (window.maplibregl && L.maplibreGL && hasWebGL()) {
+      try {
+        return L.maplibreGL({
+          style: "https://tiles.openfreemap.org/styles/positron",
+          className: "lm-tiles",
+          attribution: '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> ' + OSM_ATTR,
+        });
+      } catch (e) {}
+    }
+    return L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      className: "lm-tiles",
+      attribution: OSM_ATTR,
+    });
+  }
+
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -62,18 +105,7 @@
         scrollWheelZoom: false,
         tap: true,
       }).setView([lat, lng], zoom);
-      // CARTO Positron (sementara). Tile abu-putih ini diberi rona lavender
-      // lewat CSS (.lm-tiles) agar mirip desain: latar kebiruan, jalan putih.
-      // URL/kunci bisa diatur lewat env CARTO_TILE_URL + CARTO_API_KEY →
-      // window.LAJU_TILES (disuntik app/shell.rs). Kosong = Positron publik.
-      var tiles = (window.LAJU_TILES && window.LAJU_TILES.url) ||
-        "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-      L.tileLayer(tiles, {
-        maxZoom: 19,
-        subdomains: "abcd",
-        className: "lm-tiles",
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      }).addTo(map);
+      baseLayer().addTo(map);
       maps[id] = { map: map, layer: L.layerGroup().addTo(map), user: null, circle: null, pick: null, onSelect: null };
       // Elemen sering baru saja dipasang/diubah ukurannya oleh Leptos.
       setTimeout(function () { map.invalidateSize(); }, 120);

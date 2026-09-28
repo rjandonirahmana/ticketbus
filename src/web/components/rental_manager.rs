@@ -326,7 +326,7 @@ fn RequestCard(req: RentalRequest, #[prop(into)] on_changed: Callback<()>) -> im
 
 /// Input teks berlabel dengan ikon (form paket & bus).
 #[component]
-fn TextField(
+pub fn TextField(
     #[prop(into)] label: String,
     #[prop(into)] icon: String,
     #[prop(into)] placeholder: String,
