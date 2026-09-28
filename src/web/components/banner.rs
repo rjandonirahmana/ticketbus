@@ -35,7 +35,13 @@ pub fn BannerSlide(banner: Banner, #[prop(optional)] preview: bool) -> impl Into
 
     view! {
         <div class=class>
-            {has_img.then(|| view! { <img class="banner-img" src=b.gambar_url.clone() alt=b.judul.clone() loading="lazy" /> })}
+            {has_img.then(|| view! { <img
+                        class="banner-img"
+                        src=b.gambar_url.clone()
+                        style=crate::web::foto::style(&b.gambar_url)
+                        alt=b.judul.clone()
+                        loading="lazy"
+                    /> })}
             {(!has_img).then(|| view! { <span class="banner-glow" aria-hidden="true"></span> })}
             {(!preview && !b.link_url.is_empty())
                 .then(|| {
@@ -126,12 +132,27 @@ fn fallback_banner() -> Banner {
     }
 }
 
-/// Deret banner geser (scroll-snap) + titik penanda di beranda.
+/// Banner beranda: SATU banner tampil; bila lebih dari satu bisa digeser
+/// (swipe di HP, drag mouse di desktop),
+/// panah, titik penanda, dan ganti otomatis tiap 5 detik — berhenti sejenak
+/// selama pengguna berinteraksi / menyorot banner.
 #[component]
 pub fn BannerCarousel() -> impl IntoView {
+    const AUTO_MS: u64 = 5_000;
+    /// Jeda auto-geser setelah interaksi terakhir.
+    const DIAM_MS: f64 = 8_000.0;
+    const GAP_PX: f64 = 12.0;
+
     let banners = Resource::new(|| (), |_| list_banners());
     let track = NodeRef::<leptos::html::Div>::new();
     let active = RwSignal::new(0usize);
+    let count = RwSignal::new(0usize);
+    let hover = StoredValue::new(false);
+    let last_touch = StoredValue::new(0.0f64);
+    // Drag mouse: (x awal, scrollLeft awal, sudah bergeser?)
+    let drag = StoredValue::new(None::<(f64, f64, bool)>);
+    let dragged = StoredValue::new(false);
+    let dragging = RwSignal::new(false);
 
     let list = move || {
         let v = banners.get().and_then(|r| r.ok()).unwrap_or_default();
@@ -141,59 +162,161 @@ pub fn BannerCarousel() -> impl IntoView {
             v
         }
     };
-    let on_scroll = move |_| {
-        if let Some(el) = track.get() {
-            let n = el.child_element_count().max(1) as f64;
-            let step = el.scroll_width() as f64 / n;
-            if step > 0.0 {
-                active.set((el.scroll_left() as f64 / step).round() as usize);
-            }
-        }
+    // Jarak antar-awal banner = lebar satu banner + celah.
+    let step = move || -> Option<(web_sys::HtmlDivElement, f64)> {
+        let el = track.get()?;
+        let w = el.first_element_child()?.client_width() as f64;
+        (w > 0.0).then_some((el, w + GAP_PX))
     };
     let go = move |i: usize| {
-        if let Some(el) = track.get() {
-            let n = el.child_element_count().max(1) as f64;
-            let step = el.scroll_width() as f64 / n;
-            el.scroll_to_with_x_and_y(step * i as f64, 0.0);
+        if let Some((el, st)) = step() {
+            el.scroll_to_with_x_and_y(st * i as f64, 0.0);
+        }
+    };
+    let geser = move |arah: i32| {
+        let n = count.get_untracked().max(1) as i32;
+        let next = (active.get_untracked() as i32 + arah).rem_euclid(n) as usize;
+        last_touch.set_value(super::now_ms());
+        go(next);
+    };
+    let on_scroll = move |_| {
+        if let Some((el, st)) = step() {
+            let n = count.get_untracked();
+            let max = (el.scroll_width() - el.client_width()) as f64;
+            let left = el.scroll_left() as f64;
+            // Ujung kanan = banner terakhir (pembulatan scroll bisa kurang 1-2 px).
+            let i = if n > 0 && left >= max - 2.0 { n - 1 } else { (left / st).round() as usize };
+            active.set(i.min(n.saturating_sub(1)));
         }
     };
 
+    let on_down = move |ev: web_sys::PointerEvent| {
+        last_touch.set_value(super::now_ms());
+        if ev.pointer_type() != "mouse" || ev.button() != 0 {
+            return; // sentuhan: biarkan geser native
+        }
+        if let Some(el) = track.get() {
+            drag.set_value(Some((ev.client_x() as f64, el.scroll_left() as f64, false)));
+            dragged.set_value(false);
+        }
+    };
+    let on_move = move |ev: web_sys::PointerEvent| {
+        let Some((x0, left0, moved)) = drag.get_value() else { return };
+        let dx = ev.client_x() as f64 - x0;
+        if !moved && dx.abs() < 5.0 {
+            return;
+        }
+        if !moved {
+            drag.set_value(Some((x0, left0, true)));
+            dragging.set(true);
+        }
+        ev.prevent_default();
+        if let Some(el) = track.get() {
+            el.set_scroll_left((left0 - dx) as i32);
+        }
+    };
+    let on_up = move |_: web_sys::PointerEvent| {
+        let Some((_, _, moved)) = drag.get_value() else { return };
+        drag.set_value(None);
+        if moved {
+            dragged.set_value(true);
+            dragging.set(false);
+            // Kembalikan snap ke banner terdekat.
+            let i = active.get_untracked();
+            go(i);
+        }
+    };
+    // Klik yang sebenarnya akhir dari drag tidak boleh membuka tautan banner.
+    let on_click = move |ev: web_sys::MouseEvent| {
+        if dragged.get_value() {
+            dragged.set_value(false);
+            ev.prevent_default();
+            ev.stop_propagation();
+        }
+    };
+
+    // Auto-geser (klien saja).
+    #[cfg(target_arch = "wasm32")]
+    {
+        let handle = leptos::prelude::set_interval_with_handle(
+            move || {
+                let diam = super::now_ms() - last_touch.get_value() > DIAM_MS;
+                if count.get_untracked() > 1 && diam && !hover.get_value() && drag.get_value().is_none() {
+                    geser(1);
+                    // geser() menandai interaksi; auto-geser bukan interaksi.
+                    last_touch.set_value(0.0);
+                }
+            },
+            std::time::Duration::from_millis(AUTO_MS),
+        );
+        if let Ok(h) = handle {
+            on_cleanup(move || h.clear());
+        }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = (AUTO_MS, DIAM_MS);
+
     view! {
-        <section class="section banner-section">
-            <div class="section-head">
-                <h2>
-                    <Icon name="local_offer" />
-                    "Promo & Info Spesial"
-                </h2>
-                <Suspense fallback=|| ()>
-                    {move || {
-                        let n = list().len();
-                        (n > 1)
-                            .then(|| {
-                                view! {
-                                    <div class="banner-dots">
-                                        {(0..n)
-                                            .map(|i| {
-                                                view! {
-                                                    <button
-                                                        type="button"
-                                                        class=move || if active.get() == i { "dot active" } else { "dot" }
-                                                        aria-label=format!("Banner {}", i + 1)
-                                                        on:click=move |_| go(i)
-                                                    ></button>
-                                                }
-                                            })
-                                            .collect_view()}
-                                    </div>
-                                }
-                            })
-                    }}
-                </Suspense>
-            </div>
+        <section class="banner-section" aria-label="Promo & Info Spesial">
             <Suspense fallback=|| view! { <div class="skeleton-card banner-skeleton"></div> }>
-                <div class="banner-track" node_ref=track on:scroll=on_scroll>
-                    {move || list().into_iter().map(|b| view! { <BannerSlide banner=b /> }).collect_view()}
-                </div>
+                {move || {
+                    let items = list();
+                    let n = items.len();
+                    count.set(n);
+                    view! {
+                        <div
+                            class="banner-wrap"
+                            on:mouseenter=move |_| hover.set_value(true)
+                            on:mouseleave=move |_| hover.set_value(false)
+                        >
+                            <div
+                                class=move || match (n > 1, dragging.get()) {
+                                    (false, _) => "banner-track single",
+                                    (true, true) => "banner-track dragging",
+                                    (true, false) => "banner-track",
+                                }
+                                node_ref=track
+                                on:scroll=on_scroll
+                                on:pointerdown=on_down
+                                on:pointermove=on_move
+                                on:pointerup=on_up
+                                on:pointerleave=on_up
+                                on:click=on_click
+                                on:touchstart=move |_| last_touch.set_value(super::now_ms())
+                            >
+                                {items.into_iter().map(|b| view! { <BannerSlide banner=b /> }).collect_view()}
+                            </div>
+                            {(n > 1)
+                                .then(|| {
+                                    view! {
+                                        <div class="banner-dots">
+                                            {(0..n)
+                                                .map(|i| {
+                                                    view! {
+                                                        <button
+                                                            type="button"
+                                                            class=move || if active.get() == i { "dot active" } else { "dot" }
+                                                            aria-label=format!("Banner {}", i + 1)
+                                                            on:click=move |_| {
+                                                                last_touch.set_value(super::now_ms());
+                                                                go(i)
+                                                            }
+                                                        ></button>
+                                                    }
+                                                })
+                                                .collect_view()}
+                                        </div>
+                                        <button type="button" class="banner-nav prev" aria-label="Banner sebelumnya" on:click=move |_| geser(-1)>
+                                            <Icon name="chevron_left" />
+                                        </button>
+                                        <button type="button" class="banner-nav next" aria-label="Banner berikutnya" on:click=move |_| geser(1)>
+                                            <Icon name="chevron_right" />
+                                        </button>
+                                    }
+                                })}
+                        </div>
+                    }
+                }}
             </Suspense>
         </section>
     }

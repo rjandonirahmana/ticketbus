@@ -11,6 +11,8 @@ use uuid::Uuid;
 use crate::config::config::RustFsConfig;
 
 const MAX_SIZE: usize = 5 * 1024 * 1024;
+/// Folder objek foto (trip, paket wisata, bus sewa, banner) di dalam bucket.
+const FOLDER: &str = "trip-photos";
 
 /// Validasi magic bytes — Content-Type dari client tak dipercaya begitu saja.
 fn detect_image_mime(data: &[u8]) -> Option<&'static str> {
@@ -21,6 +23,19 @@ fn detect_image_mime(data: &[u8]) -> Option<&'static str> {
         [0x47, 0x49, 0x46, 0x38, 0x39, 0x61, ..] => Some("image/gif"),
         [0x52, 0x49, 0x46, 0x46, _, _, _, _, 0x57, 0x45, 0x42, 0x50, ..] => Some("image/webp"),
         _ => None,
+    }
+}
+
+/// URL publik objek = `{public_url}/{bucket}/{key}` (path-style, sama dengan
+/// e-ticketing & ppm). `RUSTFS_PUBLIC_URL` boleh domain saja
+/// (`https://image.ulalaapi.store`) atau sudah berakhiran bucket — bucket
+/// tidak ditambahkan dua kali.
+fn public_base(public_url: &str, bucket: &str) -> String {
+    let base = public_url.trim_end_matches('/');
+    if base.ends_with(&format!("/{bucket}")) {
+        base.to_string()
+    } else {
+        format!("{base}/{bucket}")
     }
 }
 
@@ -44,8 +59,17 @@ impl StorageService {
         Self {
             client: Client::from_conf(config),
             bucket: cfg.bucket.clone(),
-            public_url: cfg.public_url.trim_end_matches('/').to_string(),
+            public_url: public_base(&cfg.public_url, &cfg.bucket),
         }
+    }
+
+    /// Dulu URL disimpan tanpa bucket (`{public_url}/trip-photos/…` → 404).
+    /// Kembalikan (prefiks lama, prefiks benar) untuk diperbaiki di DB saat
+    /// start; `None` bila konfigurasi tak pernah menghasilkan URL salah.
+    pub fn legacy_prefix(cfg: &RustFsConfig) -> Option<(String, String)> {
+        let lama = cfg.public_url.trim_end_matches('/');
+        let benar = public_base(&cfg.public_url, &cfg.bucket);
+        (lama != benar).then(|| (format!("{lama}/{FOLDER}/"), format!("{benar}/{FOLDER}/")))
     }
 
     pub async fn init(&self) -> anyhow::Result<()> {
@@ -82,7 +106,7 @@ impl StorageService {
             "image/gif" => "gif",
             _ => "bin",
         };
-        let key = format!("trip-photos/{}.{ext}", Uuid::new_v4());
+        let key = format!("{FOLDER}/{}.{ext}", Uuid::new_v4());
 
         self.client
             .put_object()
@@ -95,5 +119,17 @@ impl StorageService {
             .map_err(|e| anyhow::anyhow!("Gagal unggah ke RustFS: {e}"))?;
 
         Ok(format!("{}/{key}", self.public_url))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::public_base;
+
+    #[test]
+    fn url_publik_memuat_bucket() {
+        assert_eq!(public_base("https://image.ulalaapi.store", "lajubus"), "https://image.ulalaapi.store/lajubus");
+        assert_eq!(public_base("https://image.ulalaapi.store/", "lajubus"), "https://image.ulalaapi.store/lajubus");
+        assert_eq!(public_base("https://image.ulalaapi.store/lajubus", "lajubus"), "https://image.ulalaapi.store/lajubus");
     }
 }

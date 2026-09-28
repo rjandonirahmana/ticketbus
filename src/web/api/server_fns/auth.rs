@@ -25,7 +25,14 @@ pub async fn resend_otp(phone: String) -> Result<(), ServerFnError> {
 pub async fn register_verify(phone: String, otp: String) -> Result<PublicUser, ServerFnError> {
     let state = app_state().await?;
     let meta = request_meta().await;
-    let (user, session) = state.auth_svc.register_verify(&phone, &otp, &meta).await.map_err(map_err)?;
+    let (user, session, profil_po) = state.auth_svc.register_verify(&phone, &otp, &meta).await.map_err(map_err)?;
+    // Mitra PO: buat profil (status menunggu) dari draf /daftar-mitra, atau
+    // profil minimal dari nama akun bila mendaftar lewat jalur lain.
+    if user.role == "merchant" {
+        if let Err(e) = state.merchant_svc.on_registered(&user, profil_po.as_deref()).await {
+            tracing::error!(error = %e, user = %user.id, "gagal membuat profil mitra PO");
+        }
+    }
     set_cookie(crate::service::auth::SESSION_COOKIE, &session, SESSION_COOKIE_MAX_AGE);
     Ok(user)
 }

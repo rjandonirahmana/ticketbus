@@ -26,6 +26,14 @@ const SELECT_REQUEST: &str = "
            tipe_perjalanan, jumlah_orang, catatan, status, created_at
       FROM rental_requests";
 
+/// Katalog publik hanya memuat item platform atau mitra PO yang disetujui.
+fn po_ok(alias: &str) -> String {
+    format!(
+        "({alias}.merchant_id IS NULL OR EXISTS (SELECT 1 FROM merchant_profiles mp
+            WHERE mp.user_id = {alias}.merchant_id AND mp.status = 'disetujui'))"
+    )
+}
+
 /// Tabel yang punya kolom `merchant_id` + `aktif` — dipakai helper generik
 /// kepemilikan / aktif / hapus supaya tak ada nama tabel dari input.
 #[derive(Clone, Copy)]
@@ -77,8 +85,9 @@ impl RentalRepository {
     pub async fn list_packages(&self, only_active: bool, merchant: Option<&str>) -> anyhow::Result<Vec<TourPackage>> {
         let merchant = merchant.map(Uuid::parse_str).transpose()?;
         let conn = self.pool.get().await?;
+        let po_ok = po_ok("p");
         let sql = format!(
-            "{SELECT_PACKAGE} WHERE ($1 = FALSE OR p.aktif) AND ($2::uuid IS NULL OR p.merchant_id = $2)
+            "{SELECT_PACKAGE} WHERE ($1 = FALSE OR (p.aktif AND {po_ok})) AND ($2::uuid IS NULL OR p.merchant_id = $2)
               ORDER BY p.created_at DESC"
         );
         let rows = conn.query(&sql, &[&only_active, &merchant]).await?;
@@ -132,8 +141,9 @@ impl RentalRepository {
     pub async fn list_buses(&self, only_active: bool, merchant: Option<&str>) -> anyhow::Result<Vec<CharterBus>> {
         let merchant = merchant.map(Uuid::parse_str).transpose()?;
         let conn = self.pool.get().await?;
+        let po_ok = po_ok("b");
         let sql = format!(
-            "{SELECT_BUS} WHERE ($1 = FALSE OR b.aktif) AND ($2::uuid IS NULL OR b.merchant_id = $2)
+            "{SELECT_BUS} WHERE ($1 = FALSE OR (b.aktif AND {po_ok})) AND ($2::uuid IS NULL OR b.merchant_id = $2)
               ORDER BY b.kapasitas DESC, b.harga_harian"
         );
         let rows = conn.query(&sql, &[&only_active, &merchant]).await?;

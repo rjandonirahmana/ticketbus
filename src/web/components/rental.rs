@@ -356,13 +356,22 @@ pub fn RentalRequestSheet(
     }
 }
 
-/// Field unggah foto sampul (POST /upload/listing-photo → URL ke `url`).
+/// Field unggah foto (POST /upload/listing-photo → URL ke `url`). Setelah
+/// terunggah, pratinjau bisa DIGESER untuk mengatur bagian foto yang tampil;
+/// posisinya ikut tersimpan di URL (`#pos=x,y`, lihat `web::foto`).
+/// `aspect` = rasio tampilan sebenarnya (mis. "9 / 4" untuk banner) supaya
+/// potongan di pratinjau sama dengan yang dilihat penumpang.
 #[component]
 pub fn ImageUploadField(
     url: RwSignal<String>,
     #[prop(optional, into)] label: Option<String>,
     #[prop(optional, into)] hint: Option<String>,
+    #[prop(optional)] aspect: Option<&'static str>,
+    /// Matikan geser posisi (mis. foto dokumen).
+    #[prop(optional)]
+    no_pan: bool,
 ) -> impl IntoView {
+    let aspect = aspect.unwrap_or("2 / 1");
     let label = label.unwrap_or_else(|| "Foto Sampul".into());
     let hint = hint.unwrap_or_else(|| "JPG/PNG — tampil di kartu katalog".into());
     let input_ref = NodeRef::<html::Input>::new();
@@ -401,29 +410,102 @@ pub fn ImageUploadField(
         }
     };
 
+    let has_img = Memo::new(move |_| !url.get().is_empty());
+    let pan_ref = NodeRef::<html::Div>::new();
+    let img_ref = NodeRef::<html::Img>::new();
+    // (x awal pointer, y awal, posisi x awal, posisi y awal)
+    let drag = StoredValue::new(None::<(f64, f64, f64, f64)>);
+    let on_down = move |ev: web_sys::PointerEvent| {
+        if no_pan {
+            return;
+        }
+        ev.prevent_default();
+        let (_, (px, py)) = crate::web::foto::split(&url.get_untracked());
+        drag.set_value(Some((ev.client_x() as f64, ev.client_y() as f64, px, py)));
+    };
+    let on_move = move |ev: web_sys::PointerEvent| {
+        let Some((sx, sy, px, py)) = drag.get_value() else { return };
+        let (Some(box_), Some(img)) = (pan_ref.get(), img_ref.get()) else { return };
+        let (cw, ch) = (box_.client_width().max(1) as f64, box_.client_height().max(1) as f64);
+        let (nw, nh) = (img.natural_width().max(1) as f64, img.natural_height().max(1) as f64);
+        // object-fit: cover → foto diperbesar sampai menutup kotak; yang bisa
+        // digeser hanya kelebihannya (ox/oy piksel). Geser 1 px = 1 px foto.
+        let skala = (cw / nw).max(ch / nh);
+        let (ox, oy) = (nw * skala - cw, nh * skala - ch);
+        let geser = |awal: f64, delta: f64, lebih: f64| if lebih > 1.0 { awal - delta / lebih * 100.0 } else { 50.0 };
+        let nx = geser(px, ev.client_x() as f64 - sx, ox);
+        let ny = geser(py, ev.client_y() as f64 - sy, oy);
+        url.set(crate::web::foto::with_pos(&url.get_untracked(), nx, ny));
+    };
+    let on_up = move |_: web_sys::PointerEvent| drag.set_value(None);
+
     view! {
         <div class="field">
             <span class="field-label">{label}</span>
-            <label class="dropzone">
-                <input type="file" accept="image/*" node_ref=input_ref on:change=on_change />
-                {move || {
-                    let u = url.get();
-                    if u.is_empty() {
-                        view! {
+            {move || {
+                if !has_img.get() {
+                    let hint = hint.clone();
+                    return view! {
+                        <label class="dropzone">
+                            <input type="file" accept="image/*" node_ref=input_ref on:change=on_change />
                             <Icon name="add_photo_alternate" />
-                            <strong>{move || if busy.get() { "Mengunggah…" } else { "Pilih foto sampul" }}</strong>
-                            <small>{hint.clone()}</small>
-                        }
-                            .into_any()
-                    } else {
-                        view! {
-                            <img class="dropzone-preview" src=u alt="Pratinjau foto" />
-                            <small>"Ketuk untuk mengganti foto"</small>
-                        }
-                            .into_any()
+                            <strong>{move || if busy.get() { "Mengunggah…" } else { "Pilih foto" }}</strong>
+                            <small>{hint}</small>
+                        </label>
                     }
-                }}
-            </label>
+                        .into_any();
+                }
+                view! {
+                    <div
+                        class=if no_pan { "photo-pan static" } else { "photo-pan" }
+                        style=format!("aspect-ratio:{aspect}")
+                        node_ref=pan_ref
+                        on:pointerdown=on_down
+                        on:pointermove=on_move
+                        on:pointerup=on_up
+                        on:pointerleave=on_up
+                        on:pointercancel=on_up
+                    >
+                        <img
+                            node_ref=img_ref
+                            src=move || crate::web::foto::split(&url.get()).0.to_string()
+                            style=move || crate::web::foto::style(&url.get())
+                            alt="Pratinjau foto"
+                            draggable="false"
+                        />
+                        {(!no_pan)
+                            .then(|| {
+                                view! {
+                                    <span class="photo-pan-hint">
+                                        <Icon name="open_with" />
+                                        "Geser untuk atur posisi"
+                                    </span>
+                                }
+                            })}
+                    </div>
+                    <div class="photo-pan-bar">
+                        <label class="btn btn-soft btn-sm">
+                            <input type="file" accept="image/*" node_ref=input_ref on:change=on_change hidden />
+                            <Icon name="photo_camera" />
+                            {move || if busy.get() { "Mengunggah…" } else { "Ganti foto" }}
+                        </label>
+                        {(!no_pan)
+                            .then(|| {
+                                view! {
+                                    <button
+                                        type="button"
+                                        class="btn btn-ghost btn-sm"
+                                        on:click=move |_| url.update(|u| *u = crate::web::foto::with_pos(u, 50.0, 50.0))
+                                    >
+                                        <Icon name="center_focus_strong" />
+                                        "Tengahkan"
+                                    </button>
+                                }
+                            })}
+                    </div>
+                }
+                    .into_any()
+            }}
             {move || (!error.get().is_empty()).then(|| view! { <p class="alert alert-error">{error.get()}</p> })}
         </div>
     }

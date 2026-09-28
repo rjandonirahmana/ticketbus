@@ -11,7 +11,7 @@ use crate::web::api::{
 };
 use crate::web::app::SessionResource;
 use crate::web::components::{
-    clean_error, format_rupiah, month_label, shift_month, spawn_client, ArmadaManager, BannerManager, CalendarGrid, Icon, PhotoGallery, PhotoUpload,
+    clean_error, format_rupiah, month_label, shift_month, spawn_client, ArmadaManager, BannerManager, CalendarGrid, MitraReview, Icon, PhotoGallery, PhotoUpload,
     RentalManager, RouteManager, ScheduleCard, ScheduleForm, ScheduleModal,
 };
 
@@ -23,6 +23,7 @@ enum Tab {
     Foto,
     Sewa,
     Banner,
+    Mitra,
 }
 
 #[component]
@@ -215,6 +216,7 @@ pub fn AdminPage() -> impl IntoView {
                     {tab_pill(Tab::Detail, "list_alt", "Detail Order")}
                     {tab_pill(Tab::Foto, "photo_library", "Foto Trip")}
                     {tab_pill(Tab::Sewa, "beach_access", "Sewa & Wisata")}
+                    {tab_pill(Tab::Mitra, "storefront", "Mitra PO")}
                     {tab_pill(Tab::Banner, "ad_units", "Banner")}
                 </div>
 
@@ -434,6 +436,8 @@ pub fn AdminPage() -> impl IntoView {
                     Tab::Sewa => view! { <RentalManager /> }.into_any(),
 
                     Tab::Banner => view! { <BannerManager /> }.into_any(),
+
+                    Tab::Mitra => view! { <MitraReview /> }.into_any(),
 
                     Tab::Foto => {
                         let arm = armadas.get().and_then(|r| r.ok()).unwrap_or_default();

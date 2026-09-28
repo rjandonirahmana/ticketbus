@@ -4,11 +4,13 @@
 use leptos::prelude::*;
 
 use crate::web::api::{
-    create_armada, delete_photo, delete_schedule, list_my_armadas, list_my_photos, list_my_schedules, list_photos,
+    create_armada, delete_photo, delete_schedule, get_my_merchant_profile, list_my_armadas, list_my_photos,
+    list_my_schedules, list_photos, update_my_merchant_profile,
 };
 use crate::web::app::SessionResource;
 use crate::web::components::{
-    clean_error, format_rupiah, spawn_client, today_wib, ArmadaManager, Icon, PhotoGallery, PhotoUpload, RentalManager,
+    clean_error, format_rupiah, mitra_status_label, spawn_client, today_wib, ArmadaManager, Icon, PoCard, ProfileFields,
+    ProfileSignals, PhotoGallery, PhotoUpload, RentalManager,
     RouteManager, ScheduleCard, ScheduleForm,
 };
 
@@ -18,6 +20,7 @@ enum Tab {
     Armada,
     Foto,
     Sewa,
+    Profil,
 }
 
 #[component]
@@ -29,6 +32,15 @@ pub fn MerchantPage() -> impl IntoView {
     let show_oneoff = RwSignal::new(false);
 
     let armadas = Resource::new(|| (), |_| list_my_armadas());
+    let profil = Resource::new(|| (), |_| get_my_merchant_profile());
+    let status = move || {
+        profil
+            .get()
+            .and_then(|r| r.ok())
+            .flatten()
+            .map(|p| p.status)
+            .unwrap_or_else(|| "menunggu".into())
+    };
     let schedules = Resource::new(|| (), |_| list_my_schedules());
 
     let photo_armada = RwSignal::new(None::<String>);
@@ -95,18 +107,30 @@ pub fn MerchantPage() -> impl IntoView {
                         </span>
                         <div class="po-id">
                             <h1>
-                                {move || merchant_name()}
-                                <Icon name="verified" filled=true class="verified" />
+                                {move || {
+                                    profil
+                                        .get()
+                                        .and_then(|r| r.ok())
+                                        .flatten()
+                                        .map(|p| p.nama_po)
+                                        .unwrap_or_else(merchant_name)
+                                }}
+                                {move || (status() == "disetujui").then(|| view! { <Icon name="verified" filled=true class="verified" /> })}
                             </h1>
                             <p>
                                 <Icon name="storefront" />
                                 "Mitra PO LajuBus"
                             </p>
                         </div>
-                        <span class="status-pill">
-                            <i></i>
-                            "Terverifikasi"
-                        </span>
+                        {move || {
+                            let (label, class, icon) = mitra_status_label(&status());
+                            view! {
+                                <span class=class>
+                                    <Icon name=icon />
+                                    {label}
+                                </span>
+                            }
+                        }}
                     </div>
                     <div class="po-strip">
                         <Icon name="shield" />
@@ -117,6 +141,40 @@ pub fn MerchantPage() -> impl IntoView {
                         <span class="pill pill-primary">"100% Hak Kelola"</span>
                     </div>
                 </section>
+
+                {move || {
+                    let p = profil.get().and_then(|r| r.ok()).flatten()?;
+                    let (icon, class, judul, isi) = match p.status.as_str() {
+                        "disetujui" => return None,
+                        "ditolak" => (
+                            "report",
+                            "alert alert-error mitra-status",
+                            "Pendaftaran belum disetujui",
+                            format!(
+                                "Catatan admin: {}. Perbaiki di tab Profil PO lalu simpan untuk mengajukan ulang.",
+                                if p.catatan_admin.is_empty() { "-".to_string() } else { p.catatan_admin.clone() },
+                            ),
+                        ),
+                        _ => (
+                            "hourglass_top",
+                            "alert alert-warn mitra-status",
+                            "Menunggu verifikasi admin",
+                            "Silakan siapkan armada & trayek. Jadwal Anda tampil ke penumpang setelah PO disetujui — lengkapi logo, sampul & dokumen izin di tab Profil PO agar review lebih cepat.".to_string(),
+                        ),
+                    };
+                    Some(view! {
+                        <div class=class>
+                            <Icon name=icon />
+                            <span>
+                                <strong>{judul}</strong>
+                                <small>{isi}</small>
+                            </span>
+                            <button type="button" class="btn btn-soft btn-sm" on:click=move |_| active_tab.set(Tab::Profil)>
+                                "Profil PO"
+                            </button>
+                        </div>
+                    })
+                }}
 
                 <button type="button" class="action-bar" on:click=move |_| active_tab.set(Tab::Jadwal)>
                     <span class="action-icon">
@@ -193,6 +251,7 @@ pub fn MerchantPage() -> impl IntoView {
                     {tab_tile(Tab::Armada, "directions_bus", "Armada")}
                     {tab_tile(Tab::Foto, "photo_library", "Foto Trip")}
                     {tab_tile(Tab::Sewa, "beach_access", "Sewa & Wisata")}
+                    {tab_tile(Tab::Profil, "storefront", "Profil PO")}
                 </div>
 
                 {move || match active_tab.get() {
@@ -320,6 +379,13 @@ pub fn MerchantPage() -> impl IntoView {
 
                     Tab::Sewa => view! { <RentalManager /> }.into_any(),
 
+                    Tab::Profil => {
+                        match profil.get().and_then(|r| r.ok()).flatten() {
+                            Some(p) => view! { <ProfilPoPanel profil=p on_saved=move |_| profil.refetch() /> }.into_any(),
+                            None => view! { <p class="note-card">"Profil PO belum tersedia."</p> }.into_any(),
+                        }
+                    }
+
                     Tab::Foto => {
                         let arm = armadas.get().and_then(|r| r.ok()).unwrap_or_default();
                         view! {
@@ -379,6 +445,86 @@ pub fn MerchantPage() -> impl IntoView {
                     }
                 }}
             </Suspense>
+        </div>
+    }
+}
+
+/// Tab "Profil PO": ubah profil + unggah logo/sampul/dokumen, dengan
+/// pratinjau langsung seperti yang dilihat penumpang.
+#[component]
+fn ProfilPoPanel(profil: crate::web::models::MerchantProfile, #[prop(into)] on_saved: Callback<()>) -> impl IntoView {
+    let sig = ProfileSignals::new(Some(&profil));
+    let status = profil.status.clone();
+    let status_sv = StoredValue::new(status.clone());
+    let id = profil.user_id.clone();
+    let error = RwSignal::new(String::new());
+    let ok = RwSignal::new(String::new());
+    let busy = RwSignal::new(false);
+    let submit = move |_| {
+        busy.set(true);
+        let input = sig.input();
+        spawn_client(async move {
+            match update_my_merchant_profile(input).await {
+                Ok(()) => {
+                    error.set(String::new());
+                    ok.set(if status_sv.get_value() == "ditolak" {
+                        "Tersimpan & diajukan ulang ke admin.".into()
+                    } else {
+                        "Profil PO tersimpan.".into()
+                    });
+                    on_saved.run(());
+                }
+                Err(e) => error.set(clean_error(&e.to_string())),
+            }
+            busy.set(false);
+        });
+    };
+    view! {
+        <div class="mitra-grid">
+            <section class="card form-card">
+                <div class="step-head">
+                    <span class="step-icon">
+                        <Icon name="storefront" />
+                    </span>
+                    <div>
+                        <h3>"Profil PO"</h3>
+                        <p>"Tampil di halaman PO publik & kartu jadwal penumpang"</p>
+                    </div>
+                </div>
+                <ProfileFields sig=sig uploads=true />
+                <button type="button" class="btn btn-cta btn-block" on:click=submit disabled=move || busy.get()>
+                    <Icon name="save" />
+                    {move || {
+                        if busy.get() {
+                            "Menyimpan…"
+                        } else if status_sv.get_value() == "ditolak" {
+                            "Simpan & Ajukan Ulang"
+                        } else {
+                            "Simpan Profil"
+                        }
+                    }}
+                </button>
+                {move || (!error.get().is_empty()).then(|| view! { <p class="alert alert-error">{error.get()}</p> })}
+                {move || (!ok.get().is_empty()).then(|| view! { <p class="alert alert-ok">{ok.get()}</p> })}
+            </section>
+            <aside class="mitra-preview">
+                <span class="field-label">"Pratinjau"</span>
+                {move || {
+                    let mut p = sig.preview(&status);
+                    p.armada_aktif = profil.armada_aktif;
+                    p.trayek_aktif = profil.trayek_aktif;
+                    view! { <PoCard profil=p show_status=true /> }
+                }}
+                {(profil.status == "disetujui")
+                    .then(|| {
+                        view! {
+                            <a href=format!("/po/{id}") class="btn btn-soft btn-block">
+                                <Icon name="open_in_new" />
+                                "Lihat Halaman PO Publik"
+                            </a>
+                        }
+                    })}
+            </aside>
         </div>
     }
 }

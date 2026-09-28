@@ -1,5 +1,6 @@
 pub mod armada;
 pub mod banner;
+pub mod merchant;
 pub mod order;
 pub mod otp;
 pub mod phone_change;
@@ -13,6 +14,7 @@ pub mod user;
 
 pub use armada::ArmadaRepository;
 pub use banner::BannerRepository;
+pub use merchant::MerchantRepository;
 pub use order::OrderRepository;
 pub use otp::OtpRepository;
 pub use phone_change::PhoneChangeRepository;

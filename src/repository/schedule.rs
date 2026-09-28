@@ -9,9 +9,14 @@ pub(crate) const SELECT_JOIN_ARMADA: &str = "
            s.tanggal, s.tujuan, s.lokasi_jemput, s.jam, s.harga, s.catatan,
            s.kapasitas, s.kursi_terjual, s.driver_nama, s.driver_telp,
            s.konfigurasi, s.dua_dek, s.kursi_wanita, s.jemput_lat, s.jemput_lng,
-           s.route_id, s.asal, s.jam_tiba, s.batal
+           s.route_id, s.asal, s.jam_tiba, s.batal, a.merchant_id, COALESCE(mp.nama_po, '') AS po_nama
       FROM schedules s
-      JOIN armadas a ON a.id = s.armada_id";
+      JOIN armadas a ON a.id = s.armada_id
+      LEFT JOIN merchant_profiles mp ON mp.user_id = a.merchant_id";
+
+/// Hanya jadwal armada platform atau mitra PO yang sudah disetujui admin —
+/// dipakai semua daftar publik (beranda, kalender, radar, halaman PO).
+pub(crate) const PO_TAMPIL: &str = "(a.merchant_id IS NULL OR mp.status = 'disetujui')";
 
 #[derive(Clone)]
 pub struct ScheduleRepository {
@@ -34,7 +39,7 @@ impl ScheduleRepository {
         .ok_or_else(|| anyhow::anyhow!("bulan tak valid"))?;
 
         let conn = self.pool.get().await?;
-        let sql = format!("{SELECT_JOIN_ARMADA} WHERE s.tanggal >= $1 AND s.tanggal < $2 AND NOT s.batal ORDER BY s.tanggal, s.jam");
+        let sql = format!("{SELECT_JOIN_ARMADA} WHERE s.tanggal >= $1 AND s.tanggal < $2 AND NOT s.batal AND {PO_TAMPIL} ORDER BY s.tanggal, s.jam");
         let rows = conn.query(&sql, &[&start, &end]).await?;
         Ok(rows.iter().map(row_to_schedule).collect())
     }
@@ -43,7 +48,7 @@ impl ScheduleRepository {
     /// halaman browse publik (`/`).
     pub async fn list_upcoming(&self) -> anyhow::Result<Vec<Schedule>> {
         let conn = self.pool.get().await?;
-        let sql = format!("{SELECT_JOIN_ARMADA} WHERE s.tanggal >= CURRENT_DATE AND NOT s.batal ORDER BY s.tanggal, s.jam");
+        let sql = format!("{SELECT_JOIN_ARMADA} WHERE s.tanggal >= CURRENT_DATE AND NOT s.batal AND {PO_TAMPIL} ORDER BY s.tanggal, s.jam");
         let rows = conn.query(&sql, &[]).await?;
         Ok(rows.iter().map(row_to_schedule).collect())
     }
@@ -205,7 +210,7 @@ impl ScheduleRepository {
         let sql = format!(
             "SELECT q.*, bp.lat AS bp_lat, bp.lng AS bp_lng, bp.speed_kmh AS bp_speed, bp.heading AS bp_heading,
                     EXTRACT(EPOCH FROM NOW() - bp.updated_at)::bigint AS bp_umur
-               FROM ({SELECT_JOIN_ARMADA} WHERE s.tanggal = $1 AND NOT s.batal) q
+               FROM ({SELECT_JOIN_ARMADA} WHERE s.tanggal = $1 AND NOT s.batal AND {PO_TAMPIL}) q
                LEFT JOIN bus_positions bp
                       ON bp.schedule_id = q.id AND bp.updated_at > NOW() - INTERVAL '10 minutes'
               WHERE q.jemput_lat IS NOT NULL OR bp.schedule_id IS NOT NULL
@@ -300,5 +305,7 @@ pub(crate) fn row_to_schedule(row: &tokio_postgres::Row) -> Schedule {
         asal: row.get("asal"),
         jam_tiba: row.get("jam_tiba"),
         batal: row.get("batal"),
+        merchant_id: row.get::<_, Option<Uuid>>("merchant_id").map(|u| u.to_string()),
+        po_nama: row.get("po_nama"),
     }
 }

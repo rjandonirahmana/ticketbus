@@ -59,9 +59,9 @@ impl AppConfig {
                 .unwrap_or_else(|_| "http://127.0.0.1:9000".to_string()),
             access_key: std::env::var("RUSTFS_ACCESS_KEY").unwrap_or_default(),
             secret_key: std::env::var("RUSTFS_SECRET_KEY").unwrap_or_default(),
-            bucket: std::env::var("RUSTFS_BUCKET").unwrap_or_else(|_| "nyentrix-trans".to_string()),
+            bucket: std::env::var("RUSTFS_BUCKET").unwrap_or_else(|_| "bis".to_string()),
             public_url: std::env::var("RUSTFS_PUBLIC_URL")
-                .unwrap_or_else(|_| "http://127.0.0.1:9000/nyentrix-trans".to_string()),
+                .unwrap_or_else(|_| "http://127.0.0.1:9000/bis".to_string()),
         };
 
         let waha = WahaConfig {

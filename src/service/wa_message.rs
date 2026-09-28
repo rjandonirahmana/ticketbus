@@ -179,6 +179,39 @@ pub fn rental_to_cs(r: &RentalRequest) -> String {
     )
 }
 
+/// Ke CS/admin: ada pendaftaran Mitra PO baru yang perlu direview.
+pub fn mitra_baru_ke_cs(nama_po: &str, pic: &str, telp: &str, kota: &str) -> String {
+    format!(
+        "🔔 *Pendaftaran Mitra PO Baru — LajuBus*\n\n\
+         🚌 *{nama_po}*{kota}\n\
+         👤 {pic} · wa.me/{telp}\n\n\
+         Review & setujui di Dashboard Admin → tab *Mitra PO*.\n\n\
+         {FOOTER}",
+        kota = if kota.is_empty() { String::new() } else { format!(" — {kota}") },
+    )
+}
+
+/// Ke mitra: hasil review pendaftaran.
+pub fn mitra_diputuskan(nama_po: &str, disetujui: bool, catatan: &str) -> String {
+    if disetujui {
+        format!(
+            "{BRAND}\n\n\
+             Selamat! 🎉 *{nama_po}* sudah *terverifikasi* sebagai Mitra PO LajuBus.\n\n\
+             Trayek & jadwal Anda kini tampil di beranda dan bisa dipesan penumpang.\n\n\
+             {FOOTER}"
+        )
+    } else {
+        format!(
+            "{BRAND}\n\n\
+             Pendaftaran *{nama_po}* sebagai Mitra PO *belum dapat disetujui*.\n\n\
+             📝 Catatan admin: {catatan}\n\n\
+             Perbaiki profil PO di menu *Mitra → Profil PO*, lalu simpan untuk mengajukan ulang.\n\n\
+             {FOOTER}",
+            catatan = if catatan.trim().is_empty() { "-" } else { catatan.trim() },
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

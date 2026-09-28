@@ -1,7 +1,7 @@
 use deadpool_postgres::Pool;
 
 use crate::service::{
-    ArmadaService, AuthService, BannerService, OrderService, PhotoService, RatingService, RentalService, RouteService, ScheduleService, StorageService,
+    ArmadaService, AuthService, BannerService, MerchantService, OrderService, PhotoService, RatingService, RentalService, RouteService, ScheduleService, StorageService,
 };
 
 pub struct AppState {
@@ -11,6 +11,7 @@ pub struct AppState {
     pub armada_svc: ArmadaService,
     pub schedule_svc: ScheduleService,
     pub route_svc: RouteService,
+    pub merchant_svc: MerchantService,
     pub photo_svc: PhotoService,
     pub order_svc: OrderService,
     pub rating_svc: RatingService,

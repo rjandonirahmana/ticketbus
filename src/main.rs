@@ -19,11 +19,11 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 use bis::config::{config::AppConfig, database::create_pool, migrate};
 use bis::repository::{
-    ArmadaRepository, BannerRepository, OrderRepository, OtpRepository, PhoneChangeRepository, RatingRepository, RentalRepository, RouteRepository, ScheduleRepository, TripPhotoRepository,
+    ArmadaRepository, BannerRepository, MerchantRepository, OrderRepository, OtpRepository, PhoneChangeRepository, RatingRepository, RentalRepository, RouteRepository, ScheduleRepository, TripPhotoRepository,
     UserRepository,
 };
 use bis::service::{
-    auth::ensure_admin_seed, ArmadaService, AuthService, BannerService, OrderService, PhotoService, RateLimiter, RatingService, RentalService,
+    auth::ensure_admin_seed, ArmadaService, AuthService, BannerService, MerchantService, OrderService, PhotoService, RateLimiter, RatingService, RentalService,
     RouteService, ScheduleService, StorageService, WahaClient,
 };
 use bis::state::AppState;
@@ -70,6 +70,25 @@ async fn main() -> Result<()> {
         ),
     }
 
+    // Perbaiki URL foto lama yang tersimpan tanpa /{bucket} (idempoten:
+    // setelah diperbaiki, prefiks lama tak cocok lagi).
+    if let Some((lama, benar)) = StorageService::legacy_prefix(&cfg.rustfs) {
+        let conn = pool.get().await.context("koneksi DB untuk perbaikan URL foto")?;
+        let mut total = 0;
+        for (tabel, kolom) in [
+            ("trip_photos", "url"),
+            ("tour_packages", "foto_url"),
+            ("charter_buses", "foto_url"),
+            ("banners", "gambar_url"),
+        ] {
+            let sql = format!("UPDATE {tabel} SET {kolom} = $2 || substr({kolom}, length($1) + 1) WHERE starts_with({kolom}, $1)");
+            total += conn.execute(&sql, &[&lama, &benar]).await.context("perbaikan URL foto")?;
+        }
+        if total > 0 {
+            tracing::info!(total, dari = %lama, ke = %benar, "URL foto lama diperbaiki (ditambah /bucket)");
+        }
+    }
+
     let user_repo = UserRepository::new(pool.clone());
 
     ensure_admin_seed(&user_repo, &cfg.admin_phone, &cfg.admin_name, &cfg.admin_password)
@@ -85,7 +104,14 @@ async fn main() -> Result<()> {
         rate: rate_limiter.clone(),
         armada_svc: ArmadaService::new(armada_repo.clone()),
         schedule_svc: ScheduleService::new(ScheduleRepository::new(pool.clone()), armada_repo.clone()),
-        route_svc: RouteService::new(RouteRepository::new(pool.clone()), armada_repo),
+        route_svc: RouteService::new(RouteRepository::new(pool.clone()), armada_repo.clone()),
+        merchant_svc: MerchantService::new(
+            MerchantRepository::new(pool.clone()),
+            armada_repo,
+            RouteRepository::new(pool.clone()),
+            waha.clone(),
+            bis::utils::phone::normalize(&cfg.admin_phone).unwrap_or_default(),
+        ),
         photo_svc: PhotoService::new(TripPhotoRepository::new(pool.clone())),
         order_svc: OrderService::new(OrderRepository::new(pool.clone())),
         rating_svc: RatingService::new(RatingRepository::new(pool.clone()), OrderRepository::new(pool.clone())),

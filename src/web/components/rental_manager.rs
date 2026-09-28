@@ -204,7 +204,7 @@ fn ListingRow(
                 }
                     .into_any()
             } else {
-                view! { <img class="listing-thumb" src=foto alt="" loading="lazy" /> }.into_any()
+                view! { <img class="listing-thumb" style=crate::web::foto::style(&foto) src=foto.clone() alt="" loading="lazy" /> }.into_any()
             }}
             <div class="listing-main">
                 <strong>{title}</strong>

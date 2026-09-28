@@ -503,7 +503,7 @@ fn CharterCard(bus: CharterBus, hari: Option<i64>, #[prop(into)] on_pick: Callba
                     }
                         .into_any()
                 } else {
-                    view! { <img src=b.foto_url.clone() alt=b.nama.clone() loading="lazy" /> }.into_any()
+                    view! { <img src=b.foto_url.clone() style=crate::web::foto::style(&b.foto_url) alt=b.nama.clone() loading="lazy" /> }.into_any()
                 }}
                 <span class="media-badge media-badge-dark">
                     <Icon name="event_seat" />

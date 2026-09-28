@@ -43,8 +43,12 @@ impl OrderRepository {
 
             let row = tx
                 .query_opt(
-                    "SELECT harga, kapasitas, kursi_terjual, konfigurasi, dua_dek, tanggal, batal
-                       FROM schedules WHERE id = $1 FOR UPDATE",
+                    "SELECT s.harga, s.kapasitas, s.kursi_terjual, s.konfigurasi, s.dua_dek, s.tanggal, s.batal,
+                            (a.merchant_id IS NULL OR EXISTS (
+                                SELECT 1 FROM merchant_profiles mp
+                                 WHERE mp.user_id = a.merchant_id AND mp.status = 'disetujui')) AS po_aktif
+                       FROM schedules s JOIN armadas a ON a.id = s.armada_id
+                      WHERE s.id = $1 FOR UPDATE OF s",
                     &[&schedule_uuid],
                 )
                 .await?;
@@ -57,6 +61,9 @@ impl OrderRepository {
             let konfigurasi: String = row.get("konfigurasi");
             let dua_dek: bool = row.get("dua_dek");
             let tanggal: NaiveDate = row.get("tanggal");
+            if !row.get::<_, bool>("po_aktif") {
+                anyhow::bail!("PO ini belum terverifikasi — tiket belum bisa dipesan");
+            }
             if row.get::<_, bool>("batal") {
                 anyhow::bail!("Keberangkatan ini dibatalkan operator");
             }

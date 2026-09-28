@@ -7,6 +7,8 @@ pub mod calendar_grid;
 pub mod fare_calendar;
 pub mod icon;
 pub mod map;
+pub mod mitra;
+pub mod mitra_review;
 pub mod photo_gallery;
 pub mod photo_upload;
 pub mod pickup_picker;
@@ -29,6 +31,8 @@ pub use calendar_grid::CalendarGrid;
 pub use fare_calendar::{harga_singkat, min_fare, week_start, FareCalendar};
 pub use icon::Icon;
 pub use map::{geo_clear, geo_watch, keep_awake, map_focus, map_init, map_on_select, map_pick, map_fit_all, map_set_items, map_set_user, map_set_user_label, map_zoom, now_ms, MapItem};
+pub use mitra::{status_label as mitra_status_label, PoCard, ProfileFields, ProfileSignals};
+pub use mitra_review::MitraReview;
 pub use photo_gallery::PhotoGallery;
 pub use photo_upload::PhotoUpload;
 pub use pickup_picker::PickupPicker;
@@ -139,6 +143,11 @@ pub fn month_label(year: i32, month: u32) -> String {
 /// Buang bungkus teknis dari pesan server fn supaya yang sampai ke pengguna
 /// adalah kalimat yang ditulis service, bukan jejak internal Leptos.
 pub fn clean_error(raw: &str) -> String {
+    // Balasan error TANPA isi (mis. 502 dari proxy saat aplikasi mati/restart)
+    // tak bisa dibaca sebagai error server fn.
+    if raw.contains("missing delimiter in \"\"") {
+        return "Server tidak merespons (aplikasi mungkin sedang restart). Coba lagi sebentar lagi.".into();
+    }
     raw.trim_start_matches("error running server function: ")
         .trim_start_matches("ServerFnError: ")
         .trim()
@@ -180,5 +189,7 @@ mod tests {
         assert_eq!(shift_month(2026, 1, -1), (2025, 12));
         assert_eq!(shift_month(2026, 12, 1), (2027, 1));
         assert_eq!(month_label(2026, 9), "September 2026");
+        assert!(clean_error("error deserializing server function results: Invalid format: missing delimiter in \"\"")
+            .starts_with("Server tidak merespons"));
     }
 }

@@ -269,6 +269,8 @@ mod tests {
             asal: String::new(),
             jam_tiba: String::new(),
             batal: false,
+            merchant_id: None,
+            po_nama: String::new(),
         }
     }
 

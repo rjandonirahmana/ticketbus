@@ -62,12 +62,13 @@ docker run -d \
   -e WAHA_API_KEY='...' \
   `# ── RustFS (foto trip, paket wisata, bus sewa) ─────────────────────────` \
   `# ENDPOINT = app→storage (server-ke-server). PUBLIC_URL = yang dilihat` \
-  `# browser. Bucket harus bisa dibaca publik agar foto tampil.` \
+  `# browser (domain saja; /BUCKET ditambahkan otomatis). Bucket harus` \
+  `# bisa dibaca publik agar foto tampil.` \
   -e RUSTFS_ENDPOINT='http://172.17.0.1:9000' \
   -e RUSTFS_BUCKET='lajubus' \
   -e RUSTFS_ACCESS_KEY='...' \
   -e RUSTFS_SECRET_KEY='...' \
-  -e RUSTFS_PUBLIC_URL='https://image.ulalaapi.store/lajubus' \
+  -e RUSTFS_PUBLIC_URL='https://image.ulalaapi.store' \
   `# ── Peta CARTO (opsional; kosong = Positron publik) ───────────────────` \
   `# {apikey} di URL diganti CARTO_API_KEY; tanpa {apikey} → ?api_key=...` \
   -e CARTO_TILE_URL='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' \

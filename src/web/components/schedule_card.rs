@@ -89,13 +89,34 @@ pub fn TripCard(schedule: Schedule, #[prop(default = true)] bookable: bool) -> i
     view! {
         <article class="card trip-card">
             <header class="trip-head">
-                <OpLogo name=s.armada_name.clone() color=s.armada_color_hex.clone() />
+                <OpLogo
+                    name=if s.po_nama.is_empty() { s.armada_name.clone() } else { s.po_nama.clone() }
+                    color=s.armada_color_hex.clone()
+                />
                 <div class="trip-op">
-                    <h3>
-                        {s.armada_name.clone()}
-                        <Icon name="verified" filled=true class="verified" />
-                    </h3>
-                    <p>{format_tanggal(&s.tanggal)}</p>
+                    {match (s.merchant_id.clone(), s.po_nama.is_empty()) {
+                        // Nama PO → halaman profil PO; armada jadi keterangan.
+                        (Some(mid), false) => {
+                            view! {
+                                <h3>
+                                    <a href=format!("/po/{mid}") class="po-link">{s.po_nama.clone()}</a>
+                                    <Icon name="verified" filled=true class="verified" />
+                                </h3>
+                                <p>{format!("{} · {}", s.armada_name, format_tanggal(&s.tanggal))}</p>
+                            }
+                                .into_any()
+                        }
+                        _ => {
+                            view! {
+                                <h3>
+                                    {s.armada_name.clone()}
+                                    <Icon name="verified" filled=true class="verified" />
+                                </h3>
+                                <p>{format_tanggal(&s.tanggal)}</p>
+                            }
+                                .into_any()
+                        }
+                    }}
                 </div>
                 <span class="class-badge">
                     <Icon name="airline_seat_recline_extra" />

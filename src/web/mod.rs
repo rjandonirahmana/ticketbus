@@ -3,6 +3,7 @@
 pub mod api;
 pub mod app;
 pub mod components;
+pub mod foto;
 pub mod geo;
 pub mod jam;
 pub mod models;

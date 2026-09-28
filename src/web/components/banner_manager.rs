@@ -74,7 +74,7 @@ pub fn BannerManager() -> impl IntoView {
                 <span>
                     <Icon name="upload_file" />
                     <strong>"Upload Gambar Banner"</strong>
-                    <small>"Rekomendasi 1080×480 px"</small>
+                    <small>"Rekomendasi 1600×400 px (4:1)"</small>
                 </span>
                 <span>
                     <Icon name="link" />
@@ -318,11 +318,14 @@ fn BannerForm(
                 </div>
             </div>
 
-            <ImageUploadField
-                url=gambar
-                label="Gambar Banner (opsional)"
-                hint="JPG/PNG, rekomendasi 1080×480 px. Tanpa judul = tampil gambar saja."
-            />
+            <div class="banner-upload">
+                <ImageUploadField
+                    url=gambar
+                    aspect="4 / 1"
+                    label="Gambar Banner (opsional)"
+                    hint="JPG/PNG, rekomendasi 1600×400 px (4:1). Tanpa judul = tampil gambar saja."
+                />
+            </div>
             {move || {
                 (!gambar.get().is_empty())
                     .then(|| {

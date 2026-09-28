@@ -1339,10 +1339,20 @@ textarea:focus,
 .banner-section .section-head {
   align-items: center;
 }
+/* Titik penanda di dalam banner, tengah bawah. */
 .banner-dots {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  z-index: 5;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: rgba(0, 25, 50, 0.35);
+  backdrop-filter: blur(4px);
 }
 .banner-dots .dot {
   width: 6px;
@@ -1350,40 +1360,102 @@ textarea:focus,
   padding: 0;
   border: none;
   border-radius: 999px;
-  background: var(--surface-high);
+  background: rgba(255, 255, 255, 0.55);
   cursor: pointer;
   transition: width 0.2s ease, background 0.2s ease;
 }
 .banner-dots .dot.active {
-  width: 20px;
-  background: var(--primary);
+  width: 18px;
+  background: #fff;
+}
+.banner-wrap {
+  position: relative;
 }
 .banner-track {
   display: flex;
   gap: 12px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
   scrollbar-width: none;
-  padding-bottom: 6px;
+  border-radius: var(--r-lg);
+  cursor: grab;
+  touch-action: pan-x pan-y;
+}
+.banner-track.single {
+  cursor: default;
+}
+/* Saat di-drag mouse: matikan snap & smooth supaya mengikuti kursor. */
+.banner-track.dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  scroll-behavior: auto;
+  user-select: none;
+}
+.banner-track.dragging a {
+  pointer-events: none;
+}
+.banner-track img {
+  -webkit-user-drag: none;
+}
+.banner-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  display: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--primary);
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+}
+.banner-nav.prev {
+  left: 8px;
+}
+.banner-nav.next {
+  right: 8px;
+}
+@media (hover: hover) and (min-width: 768px) {
+  .banner-nav {
+    display: grid;
+  }
 }
 .banner-track::-webkit-scrollbar {
   display: none;
 }
+/* Satu banner per tampilan, seragam 3:1 (pendek memanjang); banner lain
+   dijangkau dengan geser / panah / titik. */
 .banner-track > .banner-slide {
-  flex: 0 0 88%;
-  scroll-snap-align: center;
+  flex: 0 0 100%;
+  aspect-ratio: var(--banner-ratio);
+  min-height: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
-.banner-track > .banner-slide:only-child {
-  flex-basis: 100%;
+/* Banner SELALU persis 4:1 (panjang ke samping) selebar halaman — rasio
+   yang sama dipakai pratinjau & area geser foto di form admin, jadi potongan
+   gambar di admin = yang tampil di beranda. Letaknya paling atas beranda. */
+:root {
+  --banner-ratio: 4 / 1;
 }
-@media (min-width: 768px) {
-  .banner-track > .banner-slide {
-    flex-basis: calc(50% - 6px);
-    scroll-snap-align: start;
-  }
+.banner-section {
+  width: 100%;
+  padding-top: 12px;
+}
+/* Hero di bawah banner jadi kartu (bukan lagi menempel ke tepi atas). */
+.banner-section + .hero {
+  margin: 0;
+  border-radius: 24px;
 }
 .banner-skeleton {
-  height: 128px;
+  aspect-ratio: var(--banner-ratio);
+  height: auto;
 }
 .banner-slide {
   position: relative;
@@ -1397,7 +1469,7 @@ textarea:focus,
   background: linear-gradient(100deg, #00355f, #0f4c81);
 }
 .banner-slide.has-img {
-  aspect-ratio: 9 / 4;
+  aspect-ratio: var(--banner-ratio);
   background: var(--surface-container);
 }
 .tema-malam {
@@ -1449,10 +1521,11 @@ textarea:focus,
   pointer-events: none;
   flex: 1;
   min-width: 0;
+  align-self: stretch;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px;
+  gap: 10px;
+  padding: 10px 14px;
 }
 .banner-text {
   flex: 1;
@@ -1460,8 +1533,8 @@ textarea:focus,
 }
 .banner-label {
   display: inline-flex;
-  padding: 2px 8px;
-  margin-bottom: 4px;
+  padding: 1px 7px;
+  margin-bottom: 3px;
   border-radius: 999px;
   background: var(--cta);
   color: #fff;
@@ -1471,16 +1544,55 @@ textarea:focus,
   text-transform: uppercase;
 }
 .banner-text h3 {
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 800;
-  line-height: 22px;
+  line-height: 19px;
   letter-spacing: -0.01em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .banner-text p {
   margin-top: 2px;
-  font-size: 12.5px;
-  line-height: 17px;
+  font-size: 11.5px;
+  line-height: 15px;
   color: var(--primary-fixed-dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* HP: tinggi banner 4:1 hanya ±85px — cukup label + judul. */
+@media (max-width: 599px) {
+  .banner-body {
+    padding: 8px 12px;
+  }
+  .banner-text h3 {
+    font-size: 14px;
+    line-height: 18px;
+  }
+  .banner-text p,
+  .banner-copy {
+    display: none;
+  }
+  .banner-label {
+    font-size: 9.5px;
+  }
+}
+@media (min-width: 768px) {
+  .banner-body {
+    padding: 16px 24px;
+  }
+  .banner-text h3 {
+    font-size: 20px;
+    line-height: 26px;
+  }
+  .banner-text p {
+    font-size: 13px;
+    line-height: 18px;
+    -webkit-line-clamp: 2;
+  }
 }
 .banner-slide.has-img .banner-text p {
   color: rgba(255, 255, 255, 0.85);
@@ -1494,15 +1606,15 @@ textarea:focus,
   pointer-events: auto;
 }
 .banner-code {
-  padding: 6px 12px;
+  padding: 4px 10px;
   border-radius: var(--r-md);
   border: 1.5px dashed rgba(255, 255, 255, 0.45);
   background: rgba(255, 255, 255, 0.14);
   backdrop-filter: blur(6px);
   font-family: var(--font-num);
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
 }
 .banner-copy {
   display: inline-flex;
@@ -1527,7 +1639,7 @@ textarea:focus,
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 7px 12px;
+  padding: 6px 10px;
   border-radius: var(--r-md);
   background: var(--cta);
   color: #fff;
@@ -1579,7 +1691,7 @@ textarea:focus,
 }
 .banner-admin-card {
   display: grid;
-  grid-template-columns: 132px 1fr;
+  grid-template-columns: 168px 1fr;
   gap: 12px;
   padding: 12px;
   margin-bottom: 12px;
@@ -1588,7 +1700,7 @@ textarea:focus,
   opacity: 0.55;
 }
 .banner-admin-thumb .banner-slide {
-  aspect-ratio: 9 / 4;
+  aspect-ratio: var(--banner-ratio);
   min-height: 0;
   border-radius: var(--r-sm);
   box-shadow: none;
@@ -1646,7 +1758,11 @@ textarea:focus,
   margin-left: auto;
 }
 .banner-preview .banner-slide {
-  max-width: 480px;
+  width: 100%;
+  aspect-ratio: var(--banner-ratio);
+}
+.banner-upload .photo-pan {
+  max-height: none;
 }
 /* Kartu jadwal publik */
 .trip-grid,
@@ -7006,4 +7122,419 @@ textarea:focus,
   color: var(--danger);
   font-size: 12px;
   font-weight: 700;
+}
+
+/* ── Mitra PO: kartu profil, pendaftaran, review admin, halaman PO ─────── */
+.po-profile {
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  background: var(--surface-lowest);
+  box-shadow: var(--shadow-card);
+}
+.po-cover {
+  height: 96px;
+  background: var(--hero-grad);
+}
+.po-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.po-body {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: -32px;
+  padding: 0 16px;
+}
+.po-avatar {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  border: 3px solid var(--surface-lowest);
+  background: var(--primary-container);
+  color: #fff;
+  font-size: 24px;
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+}
+.po-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #fff;
+}
+.po-name {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 2px;
+}
+.po-name h3 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.po-name p {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.po-name p .icon {
+  font-size: 15px;
+}
+.po-body > .pill {
+  flex: none;
+  margin-bottom: 4px;
+}
+.po-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 16px 0;
+}
+.po-desc {
+  padding: 10px 16px 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+  white-space: pre-line;
+}
+.po-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 14px 16px 16px;
+  padding: 10px 0;
+  border-radius: var(--r-md);
+  background: var(--surface-low);
+}
+.po-stats span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.po-stats strong {
+  font-family: var(--font-num);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+}
+.po-stats small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.po-link {
+  color: inherit;
+  text-decoration: none;
+}
+.po-link:hover {
+  color: var(--primary-container);
+  text-decoration: underline;
+}
+
+.mitra-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.mitra-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 22px 18px;
+  border-radius: var(--r-xl);
+  background: var(--hero-grad);
+  color: #fff;
+  box-shadow: var(--shadow-lg);
+}
+.mitra-hero h1 {
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.mitra-hero p {
+  font-size: 14px;
+  color: var(--primary-fixed-dim);
+}
+.mitra-benefits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mitra-benefits span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.mitra-benefits .icon {
+  font-size: 16px;
+  color: var(--cta);
+}
+.mitra-steps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 768px) {
+  .mitra-steps {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+.mitra-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border-radius: var(--r-md);
+  background: var(--surface-lowest);
+  box-shadow: var(--shadow-sm);
+}
+.mitra-steps li > span:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.mitra-steps strong {
+  font-size: 12.5px;
+}
+.mitra-steps small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.mitra-step-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  background: var(--primary-tint);
+  color: var(--primary-container);
+}
+.mitra-step-icon .icon {
+  font-size: 18px;
+}
+.mitra-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .mitra-grid {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+  .mitra-preview {
+    position: sticky;
+    top: 84px;
+  }
+}
+.mitra-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mitra-status {
+  align-items: center;
+}
+.mitra-status > span {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.mitra-status small {
+  font-weight: 400;
+}
+
+.review-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 900px) {
+  .review-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.review-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+.review-card .po-profile {
+  box-shadow: none;
+  background: var(--surface-low);
+}
+.review-data {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.review-row {
+  display: grid;
+  grid-template-columns: 18px minmax(96px, auto) 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.review-row .icon {
+  font-size: 16px;
+  color: var(--primary);
+}
+.review-row span {
+  color: var(--muted);
+}
+.review-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.review-doc {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--r-md);
+}
+.review-doc img {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+}
+.review-doc span {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 25, 50, 0.75);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--stroke);
+}
+.review-reject {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.po-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.po-page .po-cover {
+  height: 150px;
+}
+.po-rating {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+}
+.po-rating strong {
+  font-family: var(--font-num);
+  font-size: 26px;
+  color: var(--secondary);
+}
+.po-rating small {
+  color: var(--muted);
+}
+.po-armada {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.po-armada-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+}
+.po-armada-item small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Pratinjau foto yang bisa digeser (ImageUploadField) */
+.photo-pan {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  max-height: 320px;
+  border-radius: var(--r-md);
+  background: var(--surface-container);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.photo-pan:active {
+  cursor: grabbing;
+}
+.photo-pan.static {
+  cursor: default;
+}
+.photo-pan img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+.photo-pan-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 25, 50, 0.7);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.photo-pan-hint .icon {
+  font-size: 14px;
+}
+.photo-pan-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.photo-pan-bar label {
+  cursor: pointer;
 }

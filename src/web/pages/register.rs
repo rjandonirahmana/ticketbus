@@ -62,7 +62,13 @@ pub fn RegisterPage() -> impl IntoView {
             <span class="field-label">"Daftar sebagai"</span>
             <div class="role-pick">
                 {role_opt("buyer", "confirmation_number", "Penumpang", "Cari jadwal & beli tiket")}
-                {role_opt("merchant", "storefront", "Mitra PO", "Kelola armada & jadwal")}
+                <a href="/daftar-mitra" class="role-opt">
+                    <span class="role-icon">
+                        <Icon name="storefront" />
+                    </span>
+                    <strong>"Mitra PO"</strong>
+                    <small>"Formulir khusus PO + verifikasi admin"</small>
+                </a>
             </div>
             <label class="field">
                 <span class="field-label">"Nama Lengkap"</span>

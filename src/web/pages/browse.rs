@@ -130,6 +130,8 @@ pub fn BrowsePage() -> impl IntoView {
 
     view! {
         <div class="page page-home">
+            <BannerCarousel />
+
             <section class="hero">
                 <div class="hero-chips">
                     <span class="chip-glass label-caps">
@@ -260,8 +262,6 @@ pub fn BrowsePage() -> impl IntoView {
             </section>
 
             <RadarCard />
-
-            <BannerCarousel />
 
             <section id="kalender" class="section">
                 <Suspense fallback=|| view! { <div class="skeleton-card"></div> }>

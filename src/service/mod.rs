@@ -1,6 +1,7 @@
 pub mod armada;
 pub mod auth;
 pub mod banner;
+pub mod merchant;
 pub mod order;
 pub mod photo;
 pub mod rate_limit;
@@ -15,6 +16,7 @@ pub mod waha;
 pub use armada::ArmadaService;
 pub use auth::AuthService;
 pub use banner::BannerService;
+pub use merchant::MerchantService;
 pub use order::OrderService;
 pub use photo::PhotoService;
 pub use rate_limit::RateLimiter;

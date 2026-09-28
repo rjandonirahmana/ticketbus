@@ -411,6 +411,17 @@ impl AuthService {
     /// tersimpan — tak ada sesi pendaftaran menggantung untuk pesan yang tak
     /// pernah sampai (pola `send_wa_otp` di e-ticketing).
     pub async fn register_request(&self, phone_raw: &str, name: &str, role: &str) -> anyhow::Result<()> {
+        self.register_draft(phone_raw, name, role, None).await
+    }
+
+    /// Pendaftaran Mitra PO dari /daftar-mitra: `profil_po` = JSON
+    /// `NewMerchantProfile` yang sudah divalidasi, disimpan bersama draf OTP
+    /// dan dijadikan profil (status `menunggu`) saat OTP terverifikasi.
+    pub async fn register_merchant(&self, phone_raw: &str, name: &str, profil_po: &str) -> anyhow::Result<()> {
+        self.register_draft(phone_raw, name, "merchant", Some(profil_po)).await
+    }
+
+    async fn register_draft(&self, phone_raw: &str, name: &str, role: &str, profil_po: Option<&str>) -> anyhow::Result<()> {
         let phone_norm = phone::normalize(phone_raw).ok_or_else(|| anyhow::anyhow!("Nomor HP tidak valid"))?;
         let name = name.trim();
         if name.is_empty() {
@@ -436,7 +447,7 @@ impl AuthService {
 
         let expires_at = Utc::now() + Duration::minutes(OTP_TTL_MINUTES);
         self.otp
-            .upsert(&phone_norm, name, role, &password_hash, &otp_code, expires_at)
+            .upsert(&phone_norm, name, role, &password_hash, &otp_code, expires_at, profil_po)
             .await?;
         Ok(())
     }
@@ -462,7 +473,15 @@ impl AuthService {
 
         let expires_at = Utc::now() + Duration::minutes(OTP_TTL_MINUTES);
         self.otp
-            .upsert(&phone_norm, &pending.name, &pending.role, &pending.password_hash, &otp_code, expires_at)
+            .upsert(
+                &phone_norm,
+                &pending.name,
+                &pending.role,
+                &pending.password_hash,
+                &otp_code,
+                expires_at,
+                pending.profil_po.as_deref(),
+            )
             .await?;
         Ok(())
     }
@@ -474,7 +493,7 @@ impl AuthService {
         phone_raw: &str,
         otp_input: &str,
         meta: &SessionMeta,
-    ) -> anyhow::Result<(PublicUser, String)> {
+    ) -> anyhow::Result<(PublicUser, String, Option<String>)> {
         let phone_norm = phone::normalize(phone_raw).ok_or_else(|| anyhow::anyhow!("Nomor HP tidak valid"))?;
         if !self
             .rate
@@ -509,7 +528,7 @@ impl AuthService {
         self.otp.delete(&phone_norm).await?;
         let session = self.start_session(&user.id, &user.role, meta).await?;
         self.event(&user.id, "login_berhasil", meta).await;
-        Ok((user, session))
+        Ok((user, session, pending.profil_po))
     }
 
     /// Login no. HP + password. Nomor tak terdaftar tetap menjalankan SATU

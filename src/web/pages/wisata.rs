@@ -380,7 +380,7 @@ fn PackageCard(pkg: TourPackage, #[prop(into)] on_book: Callback<RequestTarget>)
                     }
                         .into_any()
                 } else {
-                    view! { <img src=p.foto_url.clone() alt=p.judul.clone() loading="lazy" /> }.into_any()
+                    view! { <img src=p.foto_url.clone() style=crate::web::foto::style(&p.foto_url) alt=p.judul.clone() loading="lazy" /> }.into_any()
                 }}
                 <div class="media-shade"></div>
                 {(!p.label_badge.is_empty()).then(|| view! { <span class="media-badge">{p.label_badge.clone()}</span> })}

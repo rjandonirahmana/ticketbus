@@ -54,6 +54,10 @@ pub struct Schedule {
     pub jam_tiba: String,
     /// Keberangkatan hari itu dibatalkan (tak tampil ke penumpang).
     pub batal: bool,
+    /// Pemilik armada (mitra PO); `None` = armada platform.
+    pub merchant_id: Option<String>,
+    /// Nama PO dari profil mitra (kosong untuk armada platform).
+    pub po_nama: String,
 }
 
 impl Schedule {
@@ -498,4 +502,65 @@ pub struct NewRoute {
     pub balik_armada_id: String,
     pub balik_driver_nama: String,
     pub balik_driver_telp: String,
+}
+
+// ── Mitra PO ─────────────────────────────────────────────────────────────────
+
+/// Profil PO. Di profil publik (/po/:id) kolom review (pemilik, email, izin,
+/// dokumen, catatan admin, telp) dikosongkan server.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct MerchantProfile {
+    pub user_id: String,
+    pub nama_po: String,
+    pub kota: String,
+    pub alamat: String,
+    pub deskripsi: String,
+    pub tahun_berdiri: Option<i32>,
+    pub jumlah_armada: i32,
+    pub layanan: Vec<String>,
+    pub nama_pemilik: String,
+    pub email: String,
+    pub nomor_izin: String,
+    pub dokumen_url: String,
+    pub logo_url: String,
+    pub sampul_url: String,
+    /// `menunggu` | `disetujui` | `ditolak`.
+    pub status: String,
+    pub catatan_admin: String,
+    /// No. WhatsApp akun (hanya untuk admin & pemilik).
+    pub telp: String,
+    /// RFC3339.
+    pub created_at: String,
+    /// Jumlah armada & trayek aktif sungguhan (bukan klaim).
+    pub armada_aktif: i32,
+    pub trayek_aktif: i32,
+}
+
+/// Input form profil PO (daftar & ubah). `layanan` dipisah koma;
+/// `tahun_berdiri` teks ("" = tidak diisi) — aman untuk form-urlencoded.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct NewMerchantProfile {
+    pub nama_po: String,
+    pub kota: String,
+    pub alamat: String,
+    pub deskripsi: String,
+    pub tahun_berdiri: String,
+    pub jumlah_armada: i32,
+    pub layanan: String,
+    pub nama_pemilik: String,
+    pub email: String,
+    pub nomor_izin: String,
+    pub dokumen_url: String,
+    pub logo_url: String,
+    pub sampul_url: String,
+}
+
+/// Isi halaman profil PO publik.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct PoPage {
+    pub profil: MerchantProfile,
+    pub armadas: Vec<Armada>,
+    pub routes: Vec<Route>,
+    /// Keberangkatan mendatang (sudah difilter tak batal), urut tanggal.
+    pub keberangkatan: Vec<Schedule>,
 }
