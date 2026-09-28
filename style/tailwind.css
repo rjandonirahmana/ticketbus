@@ -7126,6 +7126,7 @@ textarea:focus,
 
 /* ── Mitra PO: kartu profil, pendaftaran, review admin, halaman PO ─────── */
 .po-profile {
+  position: relative;
   overflow: hidden;
   border-radius: var(--r-lg);
   background: var(--surface-lowest);
@@ -7192,9 +7193,12 @@ textarea:focus,
 .po-name p .icon {
   font-size: 15px;
 }
+/* Status review di pojok kanan atas sampul — nama PO dapat lebar penuh. */
 .po-body > .pill {
-  flex: none;
-  margin-bottom: 4px;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  box-shadow: var(--shadow-sm);
 }
 .po-tags {
   display: flex;
@@ -7537,4 +7541,85 @@ textarea:focus,
 }
 .photo-pan-bar label {
   cursor: pointer;
+}
+
+/* ── /daftar-mitra & tab Profil PO: tata letak HP ──────────────────────── */
+/* Layanan: chip membungkus ke baris baru, bukan digeser menyamping. */
+.mitra-grid .chip-row {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+@media (max-width: 599px) {
+  .mitra-page {
+    gap: 14px;
+  }
+  .mitra-hero {
+    padding: 20px 16px;
+    border-radius: var(--r-lg);
+  }
+  .mitra-hero h1 {
+    font-size: 23px;
+    line-height: 29px;
+  }
+  .mitra-hero p {
+    font-size: 13.5px;
+  }
+  .mitra-benefits span {
+    font-size: 12px;
+    padding: 5px 9px;
+  }
+  /* Langkah: daftar vertikal ringkas, bukan kotak 2 kolom yang sempit. */
+  .mitra-steps {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .mitra-steps li {
+    align-items: center;
+    padding: 8px 10px;
+  }
+  .mitra-steps small {
+    font-size: 11.5px;
+  }
+  /* Isian satu kolom — label & placeholder tak terpotong. */
+  .mitra-grid .field-grid {
+    grid-template-columns: 1fr;
+  }
+  .mitra-grid .form-card {
+    padding: 14px;
+  }
+  /* Pratinjau di ATAS form supaya kelihatan saat mulai mengisi. */
+  .mitra-preview {
+    order: -1;
+  }
+  .po-cover {
+    height: 80px;
+  }
+  .po-avatar {
+    width: 60px;
+    height: 60px;
+    font-size: 20px;
+  }
+  .po-body {
+    margin-top: -26px;
+    padding: 0 14px;
+  }
+  .po-name h3 {
+    font-size: 16.5px;
+  }
+  .po-desc {
+    padding: 10px 14px 0;
+    font-size: 13px;
+  }
+  .po-tags {
+    padding: 10px 14px 0;
+  }
+  .po-stats {
+    margin: 12px 14px 14px;
+  }
+  .check-row {
+    padding: 10px;
+  }
+  .po-page .po-cover {
+    height: 110px;
+  }
 }

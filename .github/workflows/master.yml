@@ -86,8 +86,20 @@ jobs:
               echo "Buat berkas itu (perintah docker run + env), lihat deploy.example.txt di repo."
               exit 1
             fi
+            if [ ! -r "$SUMBER" ]; then
+              echo "ERROR: $SUMBER tidak bisa dibaca oleh user $(id -un)."
+              echo "Perbaiki sekali di server: sudo chown $(id -un) $SUMBER && sudo chmod 600 $SUMBER"
+              exit 1
+            fi
 
+            # Folder riwayat HARUS milik user SSH ini, bukan root: `sudo mkdir`
+            # saja membuatnya milik root sehingga `cp` di bawah (tanpa sudo)
+            # gagal "Permission denied". chown juga membereskan folder lama yang
+            # terlanjur dibuat root oleh versi workflow sebelumnya. 700: salinan
+            # berisi env rahasia, jadi hanya pemiliknya yang boleh membaca.
             sudo mkdir -p /opt/bis/riwayat
+            sudo chown -R "$(id -un):$(id -gn)" /opt/bis/riwayat
+            chmod 700 /opt/bis/riwayat
             cp "$SUMBER" "$SALINAN"
             chmod 700 "$SALINAN"
 
